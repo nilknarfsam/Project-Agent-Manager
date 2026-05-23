@@ -12,6 +12,10 @@ from pam.config_loader import project_root
 SESSIONS_DIR = "ai/sessions"
 
 
+class SessionStoreError(Exception):
+    """Erro ao ler ou gravar metadata de sessão."""
+
+
 @dataclass
 class SessionMetadata:
     """Metadata de uma sessão agentica por projeto."""
@@ -56,14 +60,50 @@ class SessionStore:
     def session_path(self, project: str) -> Path:
         return self.sessions_dir() / f"{project}.json"
 
-    def load(self, project: str) -> SessionMetadata | None:
-        """Retorna a sessão salva do projeto, ou None se não existir."""
+    def get_session(self, project: str) -> SessionMetadata | None:
+        """
+        Retorna a sessão do projeto ou None se o arquivo não existir.
+
+        Raises:
+            SessionStoreError: se o JSON estiver corrompido ou incompleto.
+        """
         path = self.session_path(project)
         if not path.is_file():
             return None
 
-        data = json.loads(path.read_text(encoding="utf-8"))
-        return SessionMetadata.from_dict(data)
+        try:
+            raw = path.read_text(encoding="utf-8")
+            data = json.loads(raw)
+        except json.JSONDecodeError as exc:
+            raise SessionStoreError(
+                f"Arquivo de sessão corrompido: {path}\n"
+                f"Use 'python -m pam.main clear-session {project}' para remover "
+                f"e execute plan/run/review novamente.\n"
+                f"Detalhe: {exc}"
+            ) from exc
+
+        if not isinstance(data, dict):
+            raise SessionStoreError(
+                f"Formato inválido em {path}: esperado um objeto JSON."
+            )
+
+        try:
+            return SessionMetadata.from_dict(data)
+        except (KeyError, TypeError, ValueError) as exc:
+            raise SessionStoreError(
+                f"Metadata de sessão incompleta em {path}.\n"
+                f"Use clear-session {project} e crie uma nova sessão.\n"
+                f"Detalhe: {exc}"
+            ) from exc
+
+    def load(self, project: str) -> SessionMetadata | None:
+        """Alias de get_session (compatibilidade Sprint 2)."""
+        return self.get_session(project)
+
+    def has_session(self, project: str) -> bool:
+        """True se existir sessão com agent_id válido."""
+        session = self.get_session(project)
+        return session is not None and bool(session.agent_id.strip())
 
     def save(self, metadata: SessionMetadata) -> Path:
         """Persiste metadata da sessão."""
@@ -75,8 +115,44 @@ class SessionStore:
         return path
 
     def find_latest(self, project: str) -> SessionMetadata | None:
-        """Retorna a sessão do projeto (uma sessão ativa por projeto na Sprint 2)."""
-        return self.load(project)
+        """Retorna a sessão do projeto (uma sessão ativa por projeto)."""
+        return self.get_session(project)
+
+    def update_session_run(
+        self,
+        project_name: str,
+        last_run_id: str | None,
+        status: str,
+        mode: str | None = None,
+        task: str | None = None,
+    ) -> SessionMetadata:
+        """Atualiza run, status e campos opcionais preservando agent_id e created_at."""
+        existing = self.get_session(project_name)
+        if not existing:
+            raise SessionStoreError(
+                f"Nenhuma sessão salva para '{project_name}' em ai/sessions/."
+            )
+
+        updated = SessionMetadata(
+            project=existing.project,
+            agent_id=existing.agent_id,
+            last_run_id=last_run_id,
+            mode=mode if mode is not None else existing.mode,
+            task=task if task is not None else existing.task,
+            created_at=existing.created_at,
+            updated_at=self.utc_now(),
+            status=status,
+        )
+        self.save(updated)
+        return updated
+
+    def clear_session(self, project: str) -> bool:
+        """Remove o arquivo de sessão do projeto. Não apaga ai/runs/."""
+        path = self.session_path(project)
+        if path.is_file():
+            path.unlink()
+            return True
+        return False
 
     @staticmethod
     def utc_now() -> str:

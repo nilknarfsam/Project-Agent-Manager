@@ -1,17 +1,16 @@
-# Sprint 2 — Persistent Sessions + Context Engine foundation
+# Sprint 3 — Real Agent Resume
 
 **Status:** em andamento  
-**Objetivo:** base de sessões persistentes, motor de contexto e identidade oficial do PAM.
+**Objetivo:** retomada real de agentes com `Agent.resume(agent_id)` usando `ai/sessions/`.
 
 ## Entregas
 
-- [x] Estrutura `ai/context/` e `ai/memory/<projeto>/`
-- [x] Módulo `context_engine.py`
-- [x] Módulo `session_store.py`
-- [x] Hooks de sessão em `cursor_runner.py`
-- [x] Comando stub `resume`
-- [x] README e ARCHITECTURE atualizados
+- [x] `session_store`: get_session, has_session, update_session_run, clear_session
+- [x] `cursor_runner.resume_existing_session()` com Agent.resume + send
+- [x] Comando `resume` funcional com `--task` e `-p`
+- [x] Comando `clear-session`
+- [x] README, CHANGELOG e KNOWN_ISSUES atualizados
 
-## Próximo passo (Sprint 3)
+## Próximo passo (Sprint 4)
 
-Retomar agentes com `Agent.resume(agent_id)` e enriquecer memória automaticamente após runs.
+Enriquecimento automático de memória após runs; runtime cloud opcional.

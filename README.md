@@ -16,7 +16,7 @@ Não é só um CLI de prompts: é a camada que organiza **como** agentes trabalh
 | **Memória** | `ai/memory/<projeto>/` — decisões, padrões, aprendizados |
 | **Contexto** | `ai/context/` — arquitetura, roadmap, sprint, stack |
 | **Rastreabilidade** | `ai/runs/` — logs de cada execução |
-| **Sessões** | `ai/sessions/` — metadata de agentes (base Sprint 2) |
+| **Sessões** | `ai/sessions/` — metadata + retomada via `Agent.resume()` |
 | **Sprints** | entregas pequenas e versionadas (ver `CHANGELOG.md`) |
 
 ## Requisitos
@@ -57,9 +57,30 @@ python -m pam.main --list-projects
 | `plan` | `plan` | Planejamento — análise sem editar arquivos |
 | `run` | `agent` | Execução de tarefas no repositório |
 | `review` | `agent` | Revisão com prompt dedicado |
-| `resume` | — | Localiza sessão salva (stub; execução na Sprint 3) |
+| `resume` | (da sessão) | Retoma agente salvo com `Agent.resume()` |
+| `clear-session` | — | Remove metadata de sessão (preserva `ai/runs/`) |
 
 O **Context Engine** injeta automaticamente `ai/context/` e `ai/memory/<projeto>/` no início de cada prompt.
+
+### Retomando sessões
+
+Após um `plan`, `run` ou `review` bem-sucedido, o PAM grava `ai/sessions/<projeto>.json` com o `agent_id`. Use `resume` para continuar a conversa no mesmo agente:
+
+```powershell
+# 1. Criar sessão com plan
+python -m pam.main plan auratime --task ai/tasks/sprint_001_analyze_project.md
+
+# 2. Retomar com instrução adicional
+python -m pam.main resume auratime -p "Continue a análise e sugira a próxima tarefa pequena"
+
+# 3. Retomar com nova tarefa em arquivo
+python -m pam.main resume auratime --task ai/tasks/sprint_001_analyze_project.md
+
+# 4. Limpar sessão (runs antigos permanecem)
+python -m pam.main clear-session auratime
+```
+
+Sem sessão salva, `resume` orienta a executar `plan` primeiro.
 
 ### Exemplos
 
@@ -68,7 +89,8 @@ python -m pam.main --list-projects
 python -m pam.main plan auratime --task ai/tasks/sprint_001_analyze_project.md
 python -m pam.main run auratime --task ai/tasks/minha_tarefa.md
 python -m pam.main review nilkplayer
-python -m pam.main resume auratime
+python -m pam.main resume auratime -p "Continue a análise"
+python -m pam.main clear-session auratime
 ```
 
 ## Estrutura

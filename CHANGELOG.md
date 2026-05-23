@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-05-23
+
+### Added (Sprint 3 — Real Agent Resume)
+
+- Retomada real via `Agent.resume(agent_id)` em `resume_existing_session()`.
+- `session_store`: `get_session`, `has_session`, `update_session_run`, `clear_session`.
+- Leitura defensiva de JSON corrompido (`SessionStoreError` com mensagem amigável).
+- Comando `clear-session` — remove apenas `ai/sessions/<projeto>.json`.
+- Comando `resume` com `--task` e `-p` — envia prompt com contexto atualizado.
+- README: seção "Retomando sessões".
+
+### Changed
+
+- `resume` deixa de ser stub e executa o agente retomado.
+- Sessões existentes preservam `created_at` ao atualizar runs.
+- `KNOWN_ISSUES` e `CURRENT_SPRINT` atualizados para Sprint 3.
+
 ## [0.3.0] - 2026-05-23
 
 ### Added (Sprint 2 — Persistent Sessions + Context Engine foundation)

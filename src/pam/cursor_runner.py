@@ -197,16 +197,109 @@ class CursorRunner:
         agent_id: str,
         *,
         mode: str = "agent",
-    ):
-        """
-        Ponto de extensão: retomar agente via Agent.resume(agent_id).
+    ) -> Agent:
+        """Retoma agente existente via Agent.resume(agent_id, options)."""
+        if not agent_id or not agent_id.strip():
+            raise ValueError("agent_id inválido para retomada de sessão.")
 
-        Sprint 3: implementação completa com envio de prompts na sessão existente.
-        """
         options = self.build_agent_options(project, mode=mode)
-        raise NotImplementedError(
-            "resume_session() será implementado na Sprint 3 com Agent.resume(). "
-            f"agent_id={agent_id}, options prontas para {project.name}."
+        return Agent.resume(agent_id, options)
+
+    def build_resume_prompt(
+        self,
+        project_name: str,
+        session: SessionMetadata,
+        *,
+        task_path: Path | None = None,
+        extra_prompt: str | None = None,
+    ) -> str:
+        """Monta prompt de retomada com contexto atualizado e modo da sessão."""
+        template_command = "plan" if session.mode == "plan" else "run"
+        sections: list[str] = []
+
+        context_block = self.context_engine.build_context_block(project_name)
+        if context_block:
+            sections.append(context_block)
+
+        sections.append(self.load_prompt_template(template_command))
+
+        sections.append(
+            "## Retomada de sessão\n\n"
+            f"Continue a partir da sessão do agente `{session.agent_id}` "
+            f"(último run: {session.last_run_id or 'nenhum'})."
+        )
+
+        if task_path:
+            task_body = task_path.read_text(encoding="utf-8").strip()
+            sections.append(f"## Tarefa\n\n{task_body}")
+
+        if extra_prompt:
+            sections.append(
+                f"## Instruções adicionais\n\n{extra_prompt.strip()}"
+            )
+
+        return "\n\n---\n\n".join(sections)
+
+    def resume_existing_session(
+        self,
+        project: ProjectConfig,
+        *,
+        task_path: Path | None = None,
+        extra_prompt: str | None = None,
+    ) -> RunRecord:
+        """
+        Retoma sessão salva, envia prompt e persiste run + metadata.
+
+        Fluxo: carregar sessão → Agent.resume → send → wait → ai/runs → ai/sessions.
+        """
+        session = self.session_store.get_session(project.name)
+        if not session or not session.agent_id.strip():
+            raise ValueError(
+                f"Nenhuma sessão ativa para '{project.name}'. "
+                "Execute plan, run ou review primeiro."
+            )
+
+        mode = session.mode
+        prompt = self.build_resume_prompt(
+            project.name,
+            session,
+            task_path=task_path,
+            extra_prompt=extra_prompt,
+        )
+
+        with self.resume_session(project, session.agent_id, mode=mode) as agent:
+            result = agent.send(prompt).wait()
+
+        command = "resume"
+        if str(result.status).lower() == "error":
+            run_path = self._save_run(
+                project,
+                command,
+                mode,
+                prompt,
+                result,
+                task_path=task_path,
+            )
+            self.session_store.update_session_run(
+                project.name,
+                last_run_id=result.id,
+                status=str(result.status),
+                mode=mode,
+                task=str(task_path) if task_path else session.task,
+            )
+            raise RuntimeError(
+                f"Retomada falhou (status={result.status}). "
+                f"Detalhes em {run_path}"
+            )
+
+        return self._finalize_run(
+            project,
+            command,
+            mode,
+            prompt,
+            result,
+            task_path=task_path,
+            session_agent_id=session.agent_id,
         )
 
     def run_prompt(
@@ -263,6 +356,27 @@ class CursorRunner:
                 f"Detalhes em {run_path}"
             )
 
+        return self._finalize_run(
+            project,
+            command,
+            mode,
+            prompt,
+            result,
+            task_path=task_path,
+        )
+
+    def _finalize_run(
+        self,
+        project: ProjectConfig,
+        command: str,
+        mode: str,
+        prompt: str,
+        result: RunResult,
+        *,
+        task_path: Path | None,
+        session_agent_id: str | None = None,
+    ) -> RunRecord:
+        """Persiste run e atualiza ou cria metadata de sessão."""
         run_path = self._save_run(
             project,
             command,
@@ -271,16 +385,31 @@ class CursorRunner:
             result,
             task_path=task_path,
         )
-        self.save_session_metadata(
-            self.session_store.create_metadata(
-                project=project.name,
-                agent_id=result.agent_id,
+
+        task_str = str(task_path) if task_path else None
+        agent_id = session_agent_id or result.agent_id
+        existing = self.session_store.get_session(project.name)
+
+        if existing and existing.agent_id:
+            self.session_store.update_session_run(
+                project.name,
                 last_run_id=result.id,
-                mode=mode,
-                task=str(task_path) if task_path else None,
                 status=str(result.status),
+                mode=mode,
+                task=task_str if task_str else existing.task,
             )
-        )
+        else:
+            self.save_session_metadata(
+                self.session_store.create_metadata(
+                    project=project.name,
+                    agent_id=agent_id,
+                    last_run_id=result.id,
+                    mode=mode,
+                    task=task_str,
+                    status=str(result.status),
+                )
+            )
+
         return RunRecord(run_path=run_path, result=result)
 
     def _save_run(
