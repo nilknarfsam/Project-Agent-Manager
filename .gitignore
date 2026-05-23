@@ -4,3 +4,4 @@ __pycache__/
 *.pyc
 ai/runs/*.json
 ai/runs/*.md
+ai/sessions/*.json

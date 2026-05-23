@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-05-23
+
+### Added (Sprint 2 — Persistent Sessions + Context Engine foundation)
+
+- Posicionamento oficial: **Operating System for AI Development**.
+- Estrutura `ai/context/` (ARCHITECTURE, ROADMAP, CURRENT_SPRINT, KNOWN_ISSUES, STACK).
+- Memória por projeto em `ai/memory/<projeto>/` (DECISIONS, PATTERNS, LEARNINGS).
+- Diretório `ai/sessions/` para metadata de sessões.
+- Módulo `context_engine.py` — consolida contexto para injeção em prompts.
+- Módulo `session_store.py` — persiste metadata (project, agent_id, run, mode, task, timestamps).
+- Hooks em `cursor_runner.py`: `create_session()`, `resume_session()`, `save_session_metadata()`.
+- Comando stub `resume` — localiza sessão existente (execução via `Agent.resume` na Sprint 3).
+- Contexto injetado automaticamente em plan/run/review.
+
+### Changed
+
+- README com subtítulo e explicação do novo posicionamento.
+- `.gitignore` ignora `ai/sessions/*.json`.
+
 ## [0.2.0] - 2026-05-23
 
 ### Added (Sprint 1)

@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 
 from pam.config_loader import list_projects, load_project
 from pam.cursor_runner import CursorRunner
+from pam.session_store import SessionStore
 
 
 def _add_project_argument(parser: argparse.ArgumentParser) -> None:
@@ -38,6 +39,7 @@ def _execute_command(args: argparse.Namespace, command: str) -> int:
         command,
         task_path=task_path,
         extra_prompt=args.prompt,
+        project=project.name,
     )
     mode = CursorRunner.mode_for_command(command)
 
@@ -84,12 +86,43 @@ def cmd_review(args: argparse.Namespace) -> int:
     return _execute_command(args, "review")
 
 
+def cmd_resume(args: argparse.Namespace) -> int:
+    """Localiza sessão persistida do projeto (execução do agente na Sprint 3)."""
+    project = load_project(args.project)
+    store = SessionStore()
+    session = store.find_latest(project.name)
+
+    print(f"[resume] Projeto: {project.name}")
+
+    if not session or not session.agent_id:
+        print(
+            "[resume] Nenhuma sessão encontrada para este projeto.\n"
+            "         Execute plan, run ou review primeiro para criar uma sessão.\n"
+            "         Metadata será salva em ai/sessions/ após a primeira execução."
+        )
+        return 0
+
+    print(f"         Agent ID:    {session.agent_id}")
+    print(f"         Último run:  {session.last_run_id or '(nenhum)'}")
+    print(f"         Modo:        {session.mode}")
+    print(f"         Status:      {session.status}")
+    print(f"         Criada em:   {session.created_at}")
+    print(f"         Atualizada:  {session.updated_at}")
+    if session.task:
+        print(f"         Tarefa:      {session.task}")
+    print(
+        "\n[resume] Retomada via Agent.resume() será implementada na Sprint 3.\n"
+        "         Por enquanto, apenas exibimos a sessão salva."
+    )
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="pam",
         description=(
-            "Project Agent Manager — controlador agentico para projetos "
-            "via Cursor Python SDK."
+            "Project Agent Manager — Operating System for AI Development. "
+            "Controlador Python para orquestrar agentes Cursor SDK."
         ),
     )
     parser.add_argument(
@@ -120,6 +153,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_project_argument(review_parser)
     review_parser.set_defaults(func=cmd_review)
+
+    resume_parser = subparsers.add_parser(
+        "resume",
+        help="Localiza sessão persistida do projeto (stub — Sprint 3)",
+    )
+    resume_parser.add_argument(
+        "project",
+        help="Nome do projeto (ex.: auratime, nilkplayer)",
+    )
+    resume_parser.set_defaults(func=cmd_resume)
 
     return parser
 

@@ -11,7 +11,9 @@ from pathlib import Path
 from cursor_sdk import Agent, AgentOptions, LocalAgentOptions, RunResult
 
 from pam.config_loader import project_root
+from pam.context_engine import ContextEngine
 from pam.models import ProjectConfig
+from pam.session_store import SessionMetadata, SessionStore
 
 PROMPTS_DIR = "ai/prompts"
 RUNS_DIR = "ai/runs"
@@ -40,8 +42,16 @@ class RunRecord:
 class CursorRunner:
     """Wrapper sobre cursor-sdk para execuções locais."""
 
-    def __init__(self, api_key: str | None = None) -> None:
+    def __init__(
+        self,
+        api_key: str | None = None,
+        *,
+        session_store: SessionStore | None = None,
+        context_engine: ContextEngine | None = None,
+    ) -> None:
         self.api_key = api_key or os.environ.get("CURSOR_API_KEY")
+        self.session_store = session_store or SessionStore()
+        self.context_engine = context_engine or ContextEngine()
 
     def ensure_api_key(self) -> str:
         if not self.api_key:
@@ -125,18 +135,30 @@ class CursorRunner:
         *,
         task_path: Path | None = None,
         extra_prompt: str | None = None,
+        project: str | None = None,
+        context_engine: ContextEngine | None = None,
     ) -> str:
-        """Combina template base, tarefa opcional e instruções extras."""
-        parts = [cls.load_prompt_template(command)]
+        """Combina contexto (opcional), template base, tarefa e instruções extras."""
+        sections: list[str] = []
+
+        if project:
+            engine = context_engine or ContextEngine()
+            context_block = engine.build_context_block(project)
+            if context_block:
+                sections.append(context_block)
+
+        sections.append(cls.load_prompt_template(command))
 
         if task_path:
             task_body = task_path.read_text(encoding="utf-8").strip()
-            parts.append(f"\n\n## Tarefa\n\n{task_body}")
+            sections.append(f"## Tarefa\n\n{task_body}")
 
         if extra_prompt:
-            parts.append(f"\n\n## Instruções adicionais\n\n{extra_prompt.strip()}")
+            sections.append(
+                f"## Instruções adicionais\n\n{extra_prompt.strip()}"
+            )
 
-        return "\n".join(parts)
+        return "\n\n---\n\n".join(sections)
 
     @staticmethod
     def mode_for_command(command: str) -> str:
@@ -144,6 +166,48 @@ class CursorRunner:
         if not mode:
             raise ValueError(f"Comando desconhecido: {command}")
         return mode
+
+    def create_session(
+        self,
+        project: ProjectConfig,
+        mode: str,
+        *,
+        task: str | None = None,
+    ) -> SessionMetadata:
+        """
+        Ponto de extensão: registrar nova sessão antes de criar o agente.
+
+        Sprint 3: passará a chamar Agent.create() e persistir agent_id real.
+        """
+        return self.session_store.create_metadata(
+            project=project.name,
+            agent_id="",
+            mode=mode,
+            task=task,
+            status="pending",
+        )
+
+    def save_session_metadata(self, metadata: SessionMetadata) -> Path:
+        """Persiste metadata da sessão em ai/sessions/<project>.json."""
+        return self.session_store.save(metadata)
+
+    def resume_session(
+        self,
+        project: ProjectConfig,
+        agent_id: str,
+        *,
+        mode: str = "agent",
+    ):
+        """
+        Ponto de extensão: retomar agente via Agent.resume(agent_id).
+
+        Sprint 3: implementação completa com envio de prompts na sessão existente.
+        """
+        options = self.build_agent_options(project, mode=mode)
+        raise NotImplementedError(
+            "resume_session() será implementado na Sprint 3 com Agent.resume(). "
+            f"agent_id={agent_id}, options prontas para {project.name}."
+        )
 
     def run_prompt(
         self,
@@ -206,6 +270,16 @@ class CursorRunner:
             prompt,
             result,
             task_path=task_path,
+        )
+        self.save_session_metadata(
+            self.session_store.create_metadata(
+                project=project.name,
+                agent_id=result.agent_id,
+                last_run_id=result.id,
+                mode=mode,
+                task=str(task_path) if task_path else None,
+                status=str(result.status),
+            )
         )
         return RunRecord(run_path=run_path, result=result)
 
