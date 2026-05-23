@@ -15,6 +15,7 @@ from pam.config_loader import project_root
 from pam.context_engine import ContextEngine
 from pam.models import ProjectConfig
 from pam.session_store import SessionMetadata, SessionStore
+from pam.task_manager import TaskManager, TaskManagerError
 
 PROMPTS_DIR = "ai/prompts"
 RUNS_DIR = "ai/runs"
@@ -119,17 +120,14 @@ class CursorRunner:
 
     @classmethod
     def resolve_task_path(cls, task: str | None) -> Path | None:
+        """Resolve tarefa legada, TASK-XXXX ou caminho em ai/tasks/."""
         if not task:
             return None
 
-        path = Path(task)
-        if not path.is_absolute():
-            path = project_root() / path
-
-        if not path.is_file():
-            raise FileNotFoundError(f"Arquivo de tarefa não encontrado: {path}")
-
-        return path
+        try:
+            return TaskManager().resolve_task_reference(task)
+        except TaskManagerError as exc:
+            raise FileNotFoundError(str(exc)) from exc
 
     @classmethod
     def resolve_agent_name(cls, command: str, agent_name: str | None = None) -> str:

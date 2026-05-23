@@ -60,6 +60,12 @@ python -m pam.main --list-projects
 | `review` | `agent` | Revisão com prompt dedicado |
 | `resume` | (da sessão) | Retoma agente salvo com `Agent.resume()` |
 | `agents` | — | Lista agentes especializados |
+| `tasks` | — | Lista tarefas gerenciadas |
+| `task-status` | — | Status e histórico de TASK-XXXX |
+| `approve-task` | — | Marca tarefa como `approved` |
+| `complete-task` | — | Marca tarefa como `done` |
+| `block-task` | — | Marca tarefa como `blocked` |
+| `cancel-task` | — | Marca tarefa como `cancelled` |
 | `clear-session` | — | Remove metadata de sessão (preserva `ai/runs/`) |
 
 O **Context Engine** injeta `ai/context/` e `ai/memory/<projeto>/`. Cada execução também inclui a definição do **agente especializado** selecionado.
@@ -86,6 +92,45 @@ python -m pam.main review auratime --agent reviewer
 ```
 
 Sem `--agent`, o PAM usa o padrão do comando. O nome do agente é salvo em `ai/sessions/<projeto>.json` (`agent_name`). No `resume`, usa o agente da sessão ou `architect` como fallback.
+
+### Task Lifecycle System
+
+Toda tarefa gerenciada possui identidade (`TASK-XXXX`), status, timestamps, agente, projeto e histórico.
+
+**Status oficiais:** `planned` · `approved` · `running` · `reviewed` · `done` · `blocked` · `cancelled`
+
+**Estrutura:**
+
+```
+ai/tasks/
+  active/      # planned, approved, running, reviewed
+  completed/   # done
+  blocked/     # blocked
+  archived/    # cancelled
+  TASK-0001.md + TASK-0001.json
+```
+
+**Fluxo automático:**
+
+| Comando | Efeito na task |
+|---------|----------------|
+| `plan --task ...` | Cria `TASK-XXXX` com status `planned` |
+| `run --task TASK-XXXX` | `running` ao iniciar → `reviewed` ao concluir |
+| `review --task TASK-XXXX` | `done` ao concluir |
+
+**Comandos manuais:**
+
+```powershell
+python -m pam.main tasks
+python -m pam.main tasks --project auratime
+python -m pam.main task-status TASK-0001
+python -m pam.main approve-task TASK-0001
+python -m pam.main complete-task TASK-0001
+python -m pam.main block-task TASK-0001
+python -m pam.main cancel-task TASK-0001
+```
+
+Arquivos legados (ex.: `ai/tasks/sprint_001_analyze_project.md`) continuam válidos; no `plan`, o PAM cria automaticamente um `TASK-XXXX` em `active/`.
 
 ### Retomando sessões
 
@@ -127,7 +172,7 @@ project_agent_manager/
 │   ├── memory/        # memória por projeto
 │   ├── sessions/      # metadata de sessões agenticas
 │   ├── projects/      # YAML por projeto
-│   ├── tasks/         # tarefas Markdown
+│   ├── tasks/         # Task Lifecycle (active/completed/blocked/archived)
 │   ├── prompts/       # templates plan, run, review
 │   ├── agents/        # definições de agentes especializados
 │   └── runs/          # logs de execução (local)
@@ -138,6 +183,7 @@ project_agent_manager/
 │   ├── context_engine.py
 │   ├── session_store.py
 │   ├── agent_registry.py
+│   ├── task_manager.py
 │   └── models.py
 └── README.md
 ```

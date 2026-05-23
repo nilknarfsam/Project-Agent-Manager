@@ -1,16 +1,16 @@
-# Sprint 4 — Specialized Agents foundation
+# Sprint 5 — Task Lifecycle System
 
 **Status:** em andamento  
-**Objetivo:** base oficial de agentes especializados e orquestração por papel técnico.
+**Objetivo:** rastrear status, histórico e progresso das tasks do PAM.
 
 ## Entregas
 
-- [x] Definições em `ai/agents/` (6 agentes oficiais)
-- [x] `agent_registry.py`
-- [x] `--agent` e comando `agents`
-- [x] Injeção de agente no prompt + `agent_name` na sessão
+- [x] Estrutura `ai/tasks/{active,completed,blocked,archived}/`
+- [x] `task_manager.py` com metadata JSON e histórico
+- [x] Comandos tasks / task-status / approve / complete / block / cancel
+- [x] Integração automática em plan / run / review
 - [x] README e CHANGELOG atualizados
 
-## Próximo passo (Sprint 5)
+## Próximo passo (Sprint 6)
 
-Orquestração multi-agente (encadeamento architect → implementer → reviewer).
+Orquestração multi-agente encadeada (architect → implementer → reviewer).

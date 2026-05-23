@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0] - 2026-05-23
+
+### Added (Sprint 5 — Task Lifecycle System)
+
+- Estrutura `ai/tasks/{active,completed,blocked,archived}/` com par `.md` + `.json`.
+- Módulo `task_manager.py` — criar, listar, carregar, atualizar status e mover tarefas.
+- Metadata: `task_id`, `title`, `project`, `status`, `agent`, timestamps, `history`.
+- Comandos: `tasks`, `task-status`, `approve-task`, `complete-task`, `block-task`, `cancel-task`.
+- Fluxo automático: `plan` cria TASK; `run` → running/reviewed; `review` → done.
+- README: seção Task Lifecycle System.
+
+### Changed
+
+- `resolve_task_path` aceita `TASK-0001` e caminhos legados.
+- `CURRENT_SPRINT` atualizado para Sprint 5.
+
 ## [0.5.0] - 2026-05-23
 
 ### Added (Sprint 4 — Specialized Agents foundation)
