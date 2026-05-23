@@ -25,6 +25,7 @@ class SessionMetadata:
     last_run_id: str | None
     mode: str
     task: str | None
+    agent_name: str | None
     created_at: str
     updated_at: str
     status: str
@@ -40,6 +41,7 @@ class SessionMetadata:
             last_run_id=data.get("last_run_id"),
             mode=str(data["mode"]),
             task=data.get("task"),
+            agent_name=data.get("agent_name"),
             created_at=str(data["created_at"]),
             updated_at=str(data["updated_at"]),
             status=str(data["status"]),
@@ -125,6 +127,7 @@ class SessionStore:
         status: str,
         mode: str | None = None,
         task: str | None = None,
+        agent_name: str | None = None,
     ) -> SessionMetadata:
         """Atualiza run, status e campos opcionais preservando agent_id e created_at."""
         existing = self.get_session(project_name)
@@ -139,6 +142,7 @@ class SessionStore:
             last_run_id=last_run_id,
             mode=mode if mode is not None else existing.mode,
             task=task if task is not None else existing.task,
+            agent_name=agent_name if agent_name is not None else existing.agent_name,
             created_at=existing.created_at,
             updated_at=self.utc_now(),
             status=status,
@@ -165,6 +169,7 @@ class SessionStore:
         agent_id: str,
         mode: str,
         task: str | None = None,
+        agent_name: str | None = None,
         last_run_id: str | None = None,
         status: str = "active",
     ) -> SessionMetadata:
@@ -176,6 +181,7 @@ class SessionStore:
             last_run_id=last_run_id,
             mode=mode,
             task=task,
+            agent_name=agent_name,
             created_at=now,
             updated_at=now,
             status=status,
@@ -195,6 +201,7 @@ class SessionStore:
             last_run_id=last_run_id if last_run_id is not None else metadata.last_run_id,
             mode=metadata.mode,
             task=metadata.task,
+            agent_name=metadata.agent_name,
             created_at=metadata.created_at,
             updated_at=self.utc_now(),
             status=status if status is not None else metadata.status,

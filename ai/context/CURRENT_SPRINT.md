@@ -1,16 +1,16 @@
-# Sprint 3 — Real Agent Resume
+# Sprint 4 — Specialized Agents foundation
 
 **Status:** em andamento  
-**Objetivo:** retomada real de agentes com `Agent.resume(agent_id)` usando `ai/sessions/`.
+**Objetivo:** base oficial de agentes especializados e orquestração por papel técnico.
 
 ## Entregas
 
-- [x] `session_store`: get_session, has_session, update_session_run, clear_session
-- [x] `cursor_runner.resume_existing_session()` com Agent.resume + send
-- [x] Comando `resume` funcional com `--task` e `-p`
-- [x] Comando `clear-session`
-- [x] README, CHANGELOG e KNOWN_ISSUES atualizados
+- [x] Definições em `ai/agents/` (6 agentes oficiais)
+- [x] `agent_registry.py`
+- [x] `--agent` e comando `agents`
+- [x] Injeção de agente no prompt + `agent_name` na sessão
+- [x] README e CHANGELOG atualizados
 
-## Próximo passo (Sprint 4)
+## Próximo passo (Sprint 5)
 
-Enriquecimento automático de memória após runs; runtime cloud opcional.
+Orquestração multi-agente (encadeamento architect → implementer → reviewer).

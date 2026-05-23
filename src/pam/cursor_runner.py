@@ -10,6 +10,7 @@ from pathlib import Path
 
 from cursor_sdk import Agent, AgentOptions, LocalAgentOptions, RunResult
 
+from pam.agent_registry import AgentRegistry
 from pam.config_loader import project_root
 from pam.context_engine import ContextEngine
 from pam.models import ProjectConfig
@@ -48,10 +49,12 @@ class CursorRunner:
         *,
         session_store: SessionStore | None = None,
         context_engine: ContextEngine | None = None,
+        agent_registry: AgentRegistry | None = None,
     ) -> None:
         self.api_key = api_key or os.environ.get("CURSOR_API_KEY")
         self.session_store = session_store or SessionStore()
         self.context_engine = context_engine or ContextEngine()
+        self.agent_registry = agent_registry or AgentRegistry()
 
     def ensure_api_key(self) -> str:
         if not self.api_key:
@@ -129,6 +132,11 @@ class CursorRunner:
         return path
 
     @classmethod
+    def resolve_agent_name(cls, command: str, agent_name: str | None = None) -> str:
+        """Resolve agente explícito ou padrão do comando."""
+        return AgentRegistry().resolve(command, agent_name)
+
+    @classmethod
     def build_prompt(
         cls,
         command: str,
@@ -136,9 +144,15 @@ class CursorRunner:
         task_path: Path | None = None,
         extra_prompt: str | None = None,
         project: str | None = None,
+        agent_name: str | None = None,
         context_engine: ContextEngine | None = None,
+        agent_registry: AgentRegistry | None = None,
     ) -> str:
-        """Combina contexto (opcional), template base, tarefa e instruções extras."""
+        """
+        Monta prompt com: contexto global, memória, agente, template, tarefa, extras.
+        """
+        registry = agent_registry or AgentRegistry()
+        resolved_agent = registry.resolve(command, agent_name)
         sections: list[str] = []
 
         if project:
@@ -146,6 +160,11 @@ class CursorRunner:
             context_block = engine.build_context_block(project)
             if context_block:
                 sections.append(context_block)
+
+        agent_body = registry.load(resolved_agent)
+        sections.append(
+            f"## Agente especializado: {resolved_agent}\n\n{agent_body}"
+        )
 
         sections.append(cls.load_prompt_template(command))
 
@@ -205,6 +224,19 @@ class CursorRunner:
         options = self.build_agent_options(project, mode=mode)
         return Agent.resume(agent_id, options)
 
+    def resolve_resume_agent_name(
+        self,
+        session: SessionMetadata,
+        *,
+        explicit_agent: str | None = None,
+    ) -> str:
+        """Usa --agent, depois sessão salva, depois architect como fallback."""
+        if explicit_agent:
+            return self.agent_registry.resolve("resume", explicit_agent)
+        if session.agent_name:
+            return self.agent_registry.validate(session.agent_name)
+        return self.agent_registry.default_for_command("resume")
+
     def build_resume_prompt(
         self,
         project_name: str,
@@ -212,14 +244,24 @@ class CursorRunner:
         *,
         task_path: Path | None = None,
         extra_prompt: str | None = None,
+        agent_name: str | None = None,
     ) -> str:
-        """Monta prompt de retomada com contexto atualizado e modo da sessão."""
+        """Monta prompt de retomada com contexto, agente e modo da sessão."""
+        resolved_agent = self.resolve_resume_agent_name(
+            session,
+            explicit_agent=agent_name,
+        )
         template_command = "plan" if session.mode == "plan" else "run"
         sections: list[str] = []
 
         context_block = self.context_engine.build_context_block(project_name)
         if context_block:
             sections.append(context_block)
+
+        agent_body = self.agent_registry.load(resolved_agent)
+        sections.append(
+            f"## Agente especializado: {resolved_agent}\n\n{agent_body}"
+        )
 
         sections.append(self.load_prompt_template(template_command))
 
@@ -246,6 +288,7 @@ class CursorRunner:
         *,
         task_path: Path | None = None,
         extra_prompt: str | None = None,
+        agent_name: str | None = None,
     ) -> RunRecord:
         """
         Retoma sessão salva, envia prompt e persiste run + metadata.
@@ -260,11 +303,16 @@ class CursorRunner:
             )
 
         mode = session.mode
+        resolved_agent = self.resolve_resume_agent_name(
+            session,
+            explicit_agent=agent_name,
+        )
         prompt = self.build_resume_prompt(
             project.name,
             session,
             task_path=task_path,
             extra_prompt=extra_prompt,
+            agent_name=agent_name,
         )
 
         with self.resume_session(project, session.agent_id, mode=mode) as agent:
@@ -286,6 +334,7 @@ class CursorRunner:
                 status=str(result.status),
                 mode=mode,
                 task=str(task_path) if task_path else session.task,
+                agent_name=resolved_agent,
             )
             raise RuntimeError(
                 f"Retomada falhou (status={result.status}). "
@@ -300,6 +349,7 @@ class CursorRunner:
             result,
             task_path=task_path,
             session_agent_id=session.agent_id,
+            agent_name=resolved_agent,
         )
 
     def run_prompt(
@@ -332,6 +382,7 @@ class CursorRunner:
         *,
         task_path: Path | None = None,
         use_session: bool = False,
+        agent_name: str | None = None,
     ) -> RunRecord:
         """Executa o agente e persiste o resultado em ai/runs/."""
         mode = self.mode_for_command(command)
@@ -363,6 +414,7 @@ class CursorRunner:
             prompt,
             result,
             task_path=task_path,
+            agent_name=agent_name,
         )
 
     def _finalize_run(
@@ -375,6 +427,7 @@ class CursorRunner:
         *,
         task_path: Path | None,
         session_agent_id: str | None = None,
+        agent_name: str | None = None,
     ) -> RunRecord:
         """Persiste run e atualiza ou cria metadata de sessão."""
         run_path = self._save_run(
@@ -384,6 +437,7 @@ class CursorRunner:
             prompt,
             result,
             task_path=task_path,
+            agent_name=agent_name,
         )
 
         task_str = str(task_path) if task_path else None
@@ -397,6 +451,7 @@ class CursorRunner:
                 status=str(result.status),
                 mode=mode,
                 task=task_str if task_str else existing.task,
+                agent_name=agent_name if agent_name else existing.agent_name,
             )
         else:
             self.save_session_metadata(
@@ -406,6 +461,7 @@ class CursorRunner:
                     last_run_id=result.id,
                     mode=mode,
                     task=task_str,
+                    agent_name=agent_name,
                     status=str(result.status),
                 )
             )
@@ -421,6 +477,7 @@ class CursorRunner:
         result: RunResult,
         *,
         task_path: Path | None,
+        agent_name: str | None = None,
     ) -> Path:
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         base_name = f"{timestamp}_{project.name}_{command}"
@@ -431,6 +488,7 @@ class CursorRunner:
             "project": project.name,
             "command": command,
             "mode": mode,
+            "agent_name": agent_name,
             "model": project.default_model,
             "repo_path": str(project.repo_path),
             "task_path": str(task_path) if task_path else None,
@@ -461,13 +519,17 @@ class CursorRunner:
             f"# Run {payload['timestamp']} — {payload['project']} ({payload['command']})",
             "",
             f"- **Modo SDK:** {payload['mode']}",
+        ]
+        if payload.get("agent_name"):
+            lines.append(f"- **Agente PAM:** {payload['agent_name']}")
+        lines.extend([
             f"- **Modelo:** {payload['model']}",
             f"- **Repositório:** `{payload['repo_path']}`",
             f"- **Status:** {payload['status']}",
             f"- **Run ID:** {payload['run_id']}",
             f"- **Agent ID:** {payload['agent_id']}",
             f"- **Duração:** {payload['duration_ms']} ms",
-        ]
+        ])
         if payload.get("task_path"):
             lines.append(f"- **Tarefa:** `{payload['task_path']}`")
 

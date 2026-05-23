@@ -17,6 +17,7 @@ Não é só um CLI de prompts: é a camada que organiza **como** agentes trabalh
 | **Contexto** | `ai/context/` — arquitetura, roadmap, sprint, stack |
 | **Rastreabilidade** | `ai/runs/` — logs de cada execução |
 | **Sessões** | `ai/sessions/` — metadata + retomada via `Agent.resume()` |
+| **Agentes** | `ai/agents/` — papéis especializados (architect, implementer, …) |
 | **Sprints** | entregas pequenas e versionadas (ver `CHANGELOG.md`) |
 
 ## Requisitos
@@ -58,9 +59,33 @@ python -m pam.main --list-projects
 | `run` | `agent` | Execução de tarefas no repositório |
 | `review` | `agent` | Revisão com prompt dedicado |
 | `resume` | (da sessão) | Retoma agente salvo com `Agent.resume()` |
+| `agents` | — | Lista agentes especializados |
 | `clear-session` | — | Remove metadata de sessão (preserva `ai/runs/`) |
 
-O **Context Engine** injeta automaticamente `ai/context/` e `ai/memory/<projeto>/` no início de cada prompt.
+O **Context Engine** injeta `ai/context/` e `ai/memory/<projeto>/`. Cada execução também inclui a definição do **agente especializado** selecionado.
+
+### Agentes especializados
+
+Agentes oficiais em `ai/agents/`:
+
+| Agente | Papel | Padrão em |
+|--------|-------|-----------|
+| `architect` | Arquitetura e planejamento | `plan` |
+| `implementer` | Implementação de código | `run` |
+| `reviewer` | Revisão e qualidade | `review` |
+| `test_writer` | Testes automatizados | — |
+| `docs_writer` | Documentação | — |
+| `release_manager` | Checklist de release | — |
+
+```powershell
+python -m pam.main agents
+
+python -m pam.main plan auratime --agent architect --task ai/tasks/sprint_001_analyze_project.md
+python -m pam.main run auratime --agent implementer --task ai/tasks/sprint_001_analyze_project.md
+python -m pam.main review auratime --agent reviewer
+```
+
+Sem `--agent`, o PAM usa o padrão do comando. O nome do agente é salvo em `ai/sessions/<projeto>.json` (`agent_name`). No `resume`, usa o agente da sessão ou `architect` como fallback.
 
 ### Retomando sessões
 
@@ -104,6 +129,7 @@ project_agent_manager/
 │   ├── projects/      # YAML por projeto
 │   ├── tasks/         # tarefas Markdown
 │   ├── prompts/       # templates plan, run, review
+│   ├── agents/        # definições de agentes especializados
 │   └── runs/          # logs de execução (local)
 ├── src/pam/
 │   ├── main.py
@@ -111,6 +137,7 @@ project_agent_manager/
 │   ├── cursor_runner.py
 │   ├── context_engine.py
 │   ├── session_store.py
+│   ├── agent_registry.py
 │   └── models.py
 └── README.md
 ```
