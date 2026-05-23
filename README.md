@@ -67,6 +67,8 @@ python -m pam.main --list-projects
 | `block-task` | — | Marca tarefa como `blocked` |
 | `cancel-task` | — | Marca tarefa como `cancelled` |
 | `clear-session` | — | Remove metadata de sessão (preserva `ai/runs/`) |
+| `onboard` | — | Aplica estrutura OS4AI em repositório existente |
+| `create-project` | — | Cria novo projeto PAM-native (flutter / python / electron) |
 
 O **Context Engine** injeta `ai/context/` e `ai/memory/<projeto>/`. Cada execução também inclui a definição do **agente especializado** selecionado.
 
@@ -152,6 +154,31 @@ python -m pam.main clear-session auratime
 
 Sem sessão salva, `resume` orienta a executar `plan` primeiro.
 
+### Project Onboarding System
+
+Onboarding automatizado do protocolo OS4AI em projetos existentes ou novos.
+
+**Onboard** — repositório já existente (não sobrescreve arquivos sem `--force`):
+
+```powershell
+python -m pam.main onboard "C:\src\projects\auratime"
+python -m pam.main onboard "C:\src\projects\Nilkplayer" --project-name nilkplayer
+python -m pam.main onboard "C:\src\projects\meu-repo" --force
+```
+
+Cria `ai/context/`, `ai/memory/<slug>/`, `ai/tasks/`, `ai/sessions/`, copia `protocol/`, agentes e prompts; gera `ai/projects/<slug>.yaml` no PAM. Se `README.md` já existir, adiciona `README_PAM.md` complementar.
+
+**Create-project** — estrutura PAM-native (sem código de app ainda):
+
+```powershell
+python -m pam.main create-project python log-analyzer
+python -m pam.main create-project flutter auratime
+python -m pam.main create-project electron project-manager
+python -m pam.main create-project python my-app --path D:\dev\projects
+```
+
+Stacks: `flutter`, `python`, `electron`. Diretório padrão: pai dos projetos já configurados (ex.: `C:\src\projects`).
+
 ### Exemplos
 
 ```powershell
@@ -185,6 +212,9 @@ project_agent_manager/
 │   ├── session_store.py
 │   ├── agent_registry.py
 │   ├── task_manager.py
+│   ├── project_bootstrap.py
+│   ├── template_engine.py
+│   ├── templates/
 │   └── models.py
 └── README.md
 ```

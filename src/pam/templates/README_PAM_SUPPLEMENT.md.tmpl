@@ -1,0 +1,21 @@
+# AI Engineering — {{project_display_name}}
+
+Este repositório foi integrado ao protocolo **OS4AI** pelo Project Agent Manager.
+
+## Estrutura adicionada
+
+- `ai/context/` — contexto operacional do projeto
+- `ai/memory/{{project_slug}}/` — memória agêntica
+- `ai/tasks/` — tasks rastreáveis
+- `protocol/` — documentação do protocolo
+
+## Uso com PAM
+
+```powershell
+python -m pam.main plan {{project_slug}}
+python -m pam.main run {{project_slug}} --task TASK-0001
+```
+
+Configuração PAM: `ai/projects/{{project_slug}}.yaml` (no repositório do PAM).
+
+Slug: `{{project_slug}}` | Stack: {{stack_label}}

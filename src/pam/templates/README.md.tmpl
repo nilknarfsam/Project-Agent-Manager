@@ -1,0 +1,22 @@
+# {{project_display_name}}
+
+{{description}}
+
+## AI / OS4AI
+
+Este projeto segue o protocolo **Operating System for AI Development (OS4AI)**.
+
+| Diretório | Função |
+|-----------|--------|
+| `ai/context/` | Arquitetura, roadmap, sprint, stack |
+| `ai/memory/{{project_slug}}/` | Decisões, padrões, aprendizados |
+| `ai/tasks/` | Task Lifecycle (TASK-XXXX) |
+| `protocol/` | Especificação OS4AI |
+
+Gerenciado pelo [Project Agent Manager](https://github.com/) — slug: `{{project_slug}}`.
+
+## Próximos passos
+
+1. Revisar `ai/context/CURRENT_SPRINT.md`
+2. Executar `plan` com o PAM: `python -m pam.main plan {{project_slug}}`
+3. Registrar decisões em `ai/memory/{{project_slug}}/DECISIONS.md`

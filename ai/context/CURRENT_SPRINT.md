@@ -1,28 +1,24 @@
-# Sprint 5.5 — AI Engineering Protocol foundation
+# Sprint 6 — Project Onboarding System
 
 **Status:** em andamento  
-**Objetivo:** criar o protocolo oficial de engenharia agêntica do PAM (OS4AI), reutilizável em qualquer projeto, chat ou agente.
+**Objetivo:** permitir onboarding de projetos existentes e criação de projetos PAM-native com estrutura OS4AI automática.
 
 ## Entregas
 
-- [x] Diretório `protocol/` com sete documentos normativos
-- [x] `OPERATING_SYSTEM_FOR_AI_DEVELOPMENT.md` — documento principal
-- [x] `AGENT_RULES.md` — regras dos seis agentes oficiais
-- [x] `TASK_LIFECYCLE.md` — ciclo de vida de tasks
-- [x] `PROJECT_BOOTSTRAP.md` — onboarding de projetos
-- [x] `DEVELOPMENT_PHILOSOPHY.md` — princípios de desenvolvimento
-- [x] `CONTEXT_INJECTION.md` — montagem de contexto
-- [x] `ARCHITECTURE_GUIDELINES.md` — diretrizes de arquitetura
-- [x] README: seção AI Engineering Protocol
-- [x] CHANGELOG 0.6.5
+- [x] `project_bootstrap.py` — estrutura OS4AI, protocolo, agentes, YAML
+- [x] `template_engine.py` + `src/pam/templates/`
+- [x] Comando `onboard <caminho>`
+- [x] Comando `create-project <stack> <nome>`
+- [x] README, CHANGELOG 0.7.0, `protocol/PROJECT_BOOTSTRAP.md`
+- [ ] Testes manuais em projeto real (auratime / projeto novo)
 
 ## Critérios de aceite
 
-- Documentação clara, profissional e reutilizável
-- Protocolo independente de ferramenta (agnóstico)
-- Nenhuma alteração na lógica principal do sistema
-- Comandos e flows existentes preservados
+- `onboard` cria estrutura sem sobrescrever arquivos existentes (sem `--force`)
+- `create-project` cria diretório e estrutura completa
+- YAML gerado em `ai/projects/`
+- Comandos legados (`plan`, `run`, `review`, tasks) inalterados
 
-## Próximo passo (Sprint 6)
+## Próximo passo (Sprint 7)
 
 Orquestração multi-agente encadeada (architect → implementer → reviewer).

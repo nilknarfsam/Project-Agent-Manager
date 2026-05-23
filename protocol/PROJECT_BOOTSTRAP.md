@@ -176,12 +176,60 @@ Conteúdo: fases, sprints concluídas e planejadas, dependências entre entregas
 
 ## 12. Integração com PAM
 
+### 12.1 Onboarding automatizado (recomendado)
+
+O PAM aplica o protocolo OS4AI via **Project Onboarding System** (`project_bootstrap.py`).
+
+**Repositório existente** — `onboard`:
+
+```powershell
+python -m pam.main onboard "C:\src\projects\meu-repo"
+python -m pam.main onboard "C:\src\projects\AuraTime" --project-name auratime
+python -m pam.main onboard "C:\src\projects\meu-repo" --force
+```
+
+| Comportamento | Detalhe |
+|---------------|---------|
+| Validação | Caminho deve existir e ser diretório |
+| Nome do projeto | Slug derivado da pasta ou `--project-name` |
+| `ai/` existente | Arquivos preservados; aviso sem `--force` |
+| Sobrescrita | Apenas com `--force` em templates gerados |
+| README existente | Cria `README_PAM.md` em vez de sobrescrever |
+| Registro PAM | `ai/projects/<slug>.yaml` no repo do PAM |
+
+**Projeto novo PAM-native** — `create-project`:
+
+```powershell
+python -m pam.main create-project python log-analyzer
+python -m pam.main create-project flutter auratime
+python -m pam.main create-project electron project-manager --path D:\dev\projects
+```
+
+Stacks suportadas: `flutter`, `python`, `electron`. Cria diretório, estrutura `ai/`, cópia de `protocol/`, agentes, prompts e YAML — **sem gerar código de aplicação** na fase inicial.
+
+### 12.2 Estrutura mínima criada
+
+| Item | Local |
+|------|-------|
+| Contexto | `ai/context/` (ARCHITECTURE, ROADMAP, CURRENT_SPRINT, KNOWN_ISSUES, STACK) |
+| Memória | `ai/memory/<slug>/` (DECISIONS, PATTERNS, LEARNINGS) |
+| Tasks | `ai/tasks/{active,completed,blocked,archived}/` |
+| Sessões / runs | `ai/sessions/`, `ai/runs/` |
+| Protocolo | `protocol/` (cópia do PAM) |
+| Agentes / prompts | `ai/agents/`, `ai/prompts/` (cópia do PAM) |
+| Docs raiz | `README.md` ou `README_PAM.md`, `CHANGELOG.md` |
+| Config PAM | `ai/projects/<slug>.yaml` (no repositório PAM) |
+
+### 12.3 Integração manual (alternativa)
+
 1. Clonar ou referenciar `project_agent_manager`.
 2. Criar `ai/projects/<nome>.yaml` apontando para o path do repositório:
 
 ```yaml
 name: meu_projeto
-path: C:\src\projects\meu_projeto
+repo_path: C:\src\projects\meu_projeto
+default_runtime: local
+default_model: composer-2.5
 description: Descrição curta
 ```
 

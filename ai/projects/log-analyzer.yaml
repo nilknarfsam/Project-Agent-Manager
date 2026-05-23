@@ -1,0 +1,5 @@
+name: log-analyzer
+repo_path: C:\src\projects\project_agent_manager\_onboard_test\log-analyzer
+default_runtime: local
+default_model: composer-2.5
+description: Projeto Log Analyzer — gerenciado pelo Project Agent Manager.
