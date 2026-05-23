@@ -1,0 +1,5 @@
+name: auratime
+repo_path: C:\src\projects\auratime
+default_runtime: local
+default_model: composer-2.5
+description: Projeto AuraTime — gerenciado pelo Project Agent Manager.

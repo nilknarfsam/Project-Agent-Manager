@@ -1,0 +1,5 @@
+name: nilkplayer
+repo_path: C:\src\projects\Nilkplayer
+default_runtime: local
+default_model: composer-2.5
+description: Projeto Nilkplayer — gerenciado pelo Project Agent Manager.

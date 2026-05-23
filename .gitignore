@@ -1,0 +1,6 @@
+.venv/
+.env
+__pycache__/
+*.pyc
+ai/runs/*.json
+ai/runs/*.md
