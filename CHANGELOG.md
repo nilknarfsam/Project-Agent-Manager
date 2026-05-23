@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.5] - 2026-05-23
+
+### Added (Sprint 5.5 — AI Engineering Protocol foundation)
+
+- Diretório `protocol/` com especificação OS4AI reutilizável e agnóstica de ferramenta.
+- `OPERATING_SYSTEM_FOR_AI_DEVELOPMENT.md` — visão, arquitetura modular, princípios obrigatórios.
+- `AGENT_RULES.md` — responsabilidades, limites e colaboração dos seis agentes oficiais.
+- `TASK_LIFECYCLE.md` — status, transições, metadata JSON e movimentação de tasks.
+- `PROJECT_BOOTSTRAP.md` — onboarding, estrutura `ai/` e checklist para novos projetos.
+- `DEVELOPMENT_PHILOSOPHY.md` — princípios de engenharia agêntica.
+- `CONTEXT_INJECTION.md` — ordem de montagem e prioridade de contexto em prompts.
+- `ARCHITECTURE_GUIDELINES.md` — modularidade, naming, organização e versionamento.
+
+### Changed
+
+- README: seção "AI Engineering Protocol".
+- `CURRENT_SPRINT` atualizado para Sprint 5.5.
+
 ## [0.6.0] - 2026-05-23
 
 ### Added (Sprint 5 — Task Lifecycle System)

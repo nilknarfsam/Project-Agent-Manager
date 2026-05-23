@@ -167,6 +167,7 @@ python -m pam.main clear-session auratime
 
 ```
 project_agent_manager/
+├── protocol/          # OS4AI — especificação reutilizável (Sprint 5.5)
 ├── ai/
 │   ├── context/       # contexto global PAM
 │   ├── memory/        # memória por projeto
@@ -189,6 +190,24 @@ project_agent_manager/
 ```
 
 Detalhes de arquitetura: `ai/context/ARCHITECTURE.md`.
+
+## AI Engineering Protocol
+
+O PAM define o **Operating System for AI Development (OS4AI)** — um protocolo oficial de engenharia agêntica em `protocol/`.
+
+| Documento | Conteúdo |
+|-----------|----------|
+| [OPERATING_SYSTEM_FOR_AI_DEVELOPMENT.md](protocol/OPERATING_SYSTEM_FOR_AI_DEVELOPMENT.md) | Visão geral e princípios |
+| [AGENT_RULES.md](protocol/AGENT_RULES.md) | Papéis, limites e colaboração |
+| [TASK_LIFECYCLE.md](protocol/TASK_LIFECYCLE.md) | Status, transições e metadata |
+| [PROJECT_BOOTSTRAP.md](protocol/PROJECT_BOOTSTRAP.md) | Onboarding de novos projetos |
+| [DEVELOPMENT_PHILOSOPHY.md](protocol/DEVELOPMENT_PHILOSOPHY.md) | Princípios de engenharia |
+| [CONTEXT_INJECTION.md](protocol/CONTEXT_INJECTION.md) | Montagem de contexto |
+| [ARCHITECTURE_GUIDELINES.md](protocol/ARCHITECTURE_GUIDELINES.md) | Modularidade e padrões |
+
+**Reutilização:** o protocolo pode ser copiado para qualquer repositório. Qualquer chat, agente ou orquestrador pode seguir as mesmas regras — basta adotar a estrutura `ai/` e os documentos em `protocol/`.
+
+**Agnosticismo:** o PAM implementa o protocolo com [Cursor Python SDK](https://cursor.com/docs/sdk/python), mas OS4AI não depende de Cursor, do PAM ou de qualquer vendor específico. A especificação vive em Markdown; a ferramenta é substituível.
 
 ## Projetos configurados
 
