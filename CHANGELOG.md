@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-beta.4] - 2026-05-23
+
+### Added (Sprint 13 — Observability & Metrics Foundation)
+
+- Diretórios `ai/metrics/` e `ai/observability/` — fundação de observabilidade local.
+- Módulo `metrics_store.py` — registro de eventos JSONL mensais, sanitização de dados sensíveis.
+- Módulo `observability_service.py` — agregações (totais, por projeto/provider/agente, duração média).
+- Integração de métricas em `plan`, `run`, `review`, `resume`, `pipeline`, `ai-summary`, `ai-tasks`, `ai-docs`.
+- Comando CLI `metrics` com filtros `--project` e `--last`.
+- GUI: aba **Observabilidade** (resumo, providers, agentes, últimas execuções, botão Atualizar).
+- Documentação: `docs/observability.md`, seção no README.
+
+### Changed
+
+- `cursor_runner`, `pipeline_engine` e `ai_service` registram eventos sem alterar providers profundamente.
+- `.gitignore` ignora `ai/metrics/events_*.jsonl`.
+- `CURRENT_SPRINT` atualizado para Sprint 13.
+
 ## [1.0.0-beta.3] - 2026-05-23
 
 ### Added (Sprint 12 — Documentation Foundation)

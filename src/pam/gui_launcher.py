@@ -20,6 +20,7 @@ from pam.config_loader import list_projects, load_project
 from pam.runtime_profiles import list_resolved_profiles
 from pam.settings_manager import SettingsManager, SettingsManagerError
 from pam.task_manager import TaskManager
+from pam.observability_service import ObservabilityService
 
 PAD = 8
 FONT_MONO = ("Consolas", 10)
@@ -97,6 +98,7 @@ class PamGuiApp:
         self._settings = SettingsManager()
         self._task_manager = TaskManager()
         self._context_builder = ContextBuilder()
+        self._observability = ObservabilityService()
         self._context_selected_files: set[str] = set()
         self._context_all_files: list[str] = []
         self._log_queue: queue.Queue[tuple[str, object]] = queue.Queue()
@@ -207,6 +209,7 @@ class PamGuiApp:
         self.tab_tasks = ttk.Frame(notebook, padding=PAD)
         self.tab_context = ttk.Frame(notebook, padding=PAD)
         self.tab_profiles = ttk.Frame(notebook, padding=PAD)
+        self.tab_observability = ttk.Frame(notebook, padding=PAD)
         self.tab_settings = ttk.Frame(notebook, padding=PAD)
         self.tab_logs = ttk.Frame(notebook, padding=PAD)
 
@@ -214,6 +217,7 @@ class PamGuiApp:
         notebook.add(self.tab_tasks, text="Tasks")
         notebook.add(self.tab_context, text="Context Builder")
         notebook.add(self.tab_profiles, text="Runtime Profiles")
+        notebook.add(self.tab_observability, text="Observabilidade")
         notebook.add(self.tab_settings, text="Configurações")
         notebook.add(self.tab_logs, text="Logs")
 
@@ -221,6 +225,7 @@ class PamGuiApp:
         self._build_tasks_tab()
         self._build_context_tab()
         self._build_profiles_tab()
+        self._build_observability_tab()
         self._build_settings_tab()
         self._build_logs_tab()
 
@@ -689,6 +694,155 @@ class PamGuiApp:
         ).pack(anchor=tk.W, pady=(PAD, 0))
 
         self.refresh_runtime_profiles()
+
+    def _build_observability_tab(self) -> None:
+        main = self.tab_observability
+
+        ttk.Label(
+            main,
+            text=(
+                "Métricas operacionais locais registradas em ai/metrics/. "
+                "Nenhuma chave de API ou prompt completo é armazenado."
+            ),
+            wraplength=640,
+        ).pack(anchor=tk.W, pady=(0, PAD))
+
+        summary_frame = ttk.LabelFrame(main, text="Resumo", padding=PAD)
+        summary_frame.pack(fill=tk.X, pady=(0, PAD))
+
+        self.obs_total_var = tk.StringVar(value="—")
+        self.obs_success_var = tk.StringVar(value="—")
+        self.obs_failure_var = tk.StringVar(value="—")
+        self.obs_avg_duration_var = tk.StringVar(value="—")
+
+        for label, var in (
+            ("Total de execuções:", self.obs_total_var),
+            ("Sucessos:", self.obs_success_var),
+            ("Falhas:", self.obs_failure_var),
+            ("Duração média:", self.obs_avg_duration_var),
+        ):
+            row = ttk.Frame(summary_frame)
+            row.pack(fill=tk.X, pady=2)
+            ttk.Label(row, text=label, width=18).pack(side=tk.LEFT)
+            ttk.Label(row, textvariable=var).pack(side=tk.LEFT)
+
+        tables = ttk.PanedWindow(main, orient=tk.HORIZONTAL)
+        tables.pack(fill=tk.BOTH, expand=True, pady=(0, PAD))
+
+        providers_frame = ttk.LabelFrame(tables, text="Providers", padding=PAD)
+        agents_frame = ttk.LabelFrame(tables, text="Agentes", padding=PAD)
+        tables.add(providers_frame, weight=1)
+        tables.add(agents_frame, weight=1)
+
+        self.obs_providers_tree = ttk.Treeview(
+            providers_frame,
+            columns=("provider", "count"),
+            show="headings",
+            height=6,
+        )
+        self.obs_providers_tree.heading("provider", text="Provider")
+        self.obs_providers_tree.heading("count", text="Execuções")
+        self.obs_providers_tree.column("provider", width=120)
+        self.obs_providers_tree.column("count", width=80)
+        self.obs_providers_tree.pack(fill=tk.BOTH, expand=True)
+
+        self.obs_agents_tree = ttk.Treeview(
+            agents_frame,
+            columns=("agent", "count"),
+            show="headings",
+            height=6,
+        )
+        self.obs_agents_tree.heading("agent", text="Agente")
+        self.obs_agents_tree.heading("count", text="Execuções")
+        self.obs_agents_tree.column("agent", width=120)
+        self.obs_agents_tree.column("count", width=80)
+        self.obs_agents_tree.pack(fill=tk.BOTH, expand=True)
+
+        last_frame = ttk.LabelFrame(main, text="Últimas execuções", padding=PAD)
+        last_frame.pack(fill=tk.BOTH, expand=True)
+
+        last_columns = ("timestamp", "project", "command", "provider", "status", "duration")
+        last_tree_frame = ttk.Frame(last_frame)
+        last_tree_frame.pack(fill=tk.BOTH, expand=True)
+
+        self.obs_last_tree = ttk.Treeview(
+            last_tree_frame,
+            columns=last_columns,
+            show="headings",
+            height=8,
+        )
+        for col, heading, width in (
+            ("timestamp", "Quando", 150),
+            ("project", "Projeto", 90),
+            ("command", "Comando", 90),
+            ("provider", "Provider", 70),
+            ("status", "Status", 60),
+            ("duration", "Duração", 80),
+        ):
+            self.obs_last_tree.heading(col, text=heading)
+            self.obs_last_tree.column(col, width=width)
+
+        last_scroll = ttk.Scrollbar(
+            last_tree_frame, orient=tk.VERTICAL, command=self.obs_last_tree.yview
+        )
+        self.obs_last_tree.configure(yscrollcommand=last_scroll.set)
+        self.obs_last_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        last_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+
+        ttk.Button(
+            main,
+            text="Atualizar",
+            command=self.refresh_observability,
+        ).pack(anchor=tk.W, pady=(PAD, 0))
+
+        self.refresh_observability()
+
+    def refresh_observability(self) -> None:
+        """Atualiza painel de observabilidade com métricas locais."""
+        project = self.project_var.get().strip() or None
+        summary = self._observability.get_summary(project=project, last=20)
+
+        self.obs_total_var.set(str(summary.total_executions))
+        self.obs_success_var.set(str(summary.successes))
+        self.obs_failure_var.set(str(summary.failures))
+        self.obs_avg_duration_var.set(
+            ObservabilityService.format_duration_ms(summary.avg_duration_ms)
+        )
+
+        for tree, items, mapping in (
+            (
+                self.obs_providers_tree,
+                summary.by_provider.items(),
+                lambda k, v: (k, v),
+            ),
+            (
+                self.obs_agents_tree,
+                summary.by_agent.items(),
+                lambda k, v: (k, v),
+            ),
+        ):
+            for item in tree.get_children():
+                tree.delete(item)
+            for key, count in items:
+                tree.insert("", tk.END, values=mapping(key, count))
+
+        for item in self.obs_last_tree.get_children():
+            self.obs_last_tree.delete(item)
+
+        for event in summary.last_executions:
+            status = "OK" if event.success else "FAIL"
+            self.obs_last_tree.insert(
+                "",
+                tk.END,
+                values=(
+                    event.timestamp[:19],
+                    event.project,
+                    event.command,
+                    event.provider or "—",
+                    status,
+                    ObservabilityService.format_duration_ms(event.duration_ms),
+                ),
+            )
 
     def _build_logs_tab(self) -> None:
         frame = ttk.LabelFrame(

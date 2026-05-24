@@ -17,6 +17,7 @@ from pam.models import ProjectConfig
 from pam.session_store import SessionMetadata, SessionStore
 from pam.settings_manager import SettingsManager
 from pam.task_manager import TaskManager, TaskManagerError
+from pam.metrics_store import MetricsStore
 
 PROMPTS_DIR = "ai/prompts"
 RUNS_DIR = "ai/runs"
@@ -338,6 +339,8 @@ class CursorRunner:
             file_label=file_label,
             provider=provider,
             model=resolved_model,
+            task_id=task_id,
+            pipeline_name=pipeline_name,
         )
 
         if str(result.status).lower() == "error":
@@ -506,6 +509,7 @@ class CursorRunner:
                 prompt,
                 result,
                 task_path=task_path,
+                agent_name=resolved_agent,
             )
             self.session_store.update_session_run(
                 project.name,
@@ -581,6 +585,7 @@ class CursorRunner:
                 prompt,
                 result,
                 task_path=task_path,
+                agent_name=agent_name,
             )
             raise RuntimeError(
                 f"Execução falhou (status={result.status}). "
@@ -662,6 +667,8 @@ class CursorRunner:
         file_label: str | None = None,
         provider: str = "cursor",
         model: str | None = None,
+        task_id: str | None = None,
+        pipeline_name: str | None = None,
     ) -> Path:
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         base_name = f"{timestamp}_{project.name}_{file_label or command}"
@@ -697,7 +704,44 @@ class CursorRunner:
             encoding="utf-8",
         )
 
+        self._record_run_metrics(
+            payload,
+            md_path,
+            task_path=task_path,
+            task_id=task_id,
+            pipeline_name=pipeline_name,
+        )
+
         return md_path
+
+    def _record_run_metrics(
+        self,
+        payload: dict,
+        run_path: Path,
+        *,
+        task_path: Path | None,
+        task_id: str | None,
+        pipeline_name: str | None,
+    ) -> None:
+        """Registra evento de métricas sem incluir prompt ou chaves."""
+        try:
+            resolved_task_id = task_id
+            if not resolved_task_id and task_path:
+                resolved_task_id = TaskManager().task_id_from_path(task_path)
+
+            status = str(payload.get("status", "unknown"))
+            success = status.lower() not in {"error", "failed", "failure"}
+            error_summary = None if success else status
+
+            MetricsStore().record_from_run_payload(
+                payload,
+                run_file=run_path,
+                task_id=resolved_task_id,
+                pipeline_name=pipeline_name,
+                error_summary=error_summary,
+            )
+        except Exception:
+            pass
 
     @staticmethod
     def _format_run_markdown(payload: dict, prompt: str) -> str:

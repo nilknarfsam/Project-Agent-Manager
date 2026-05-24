@@ -5,3 +5,4 @@ __pycache__/
 ai/runs/*.json
 ai/runs/*.md
 ai/sessions/*.json
+ai/metrics/events_*.jsonl

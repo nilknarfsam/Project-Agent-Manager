@@ -950,6 +950,19 @@ def cmd_ai_docs(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_metrics(args: argparse.Namespace) -> int:
+    """Exibe métricas e observabilidade de execuções locais."""
+    from pam.observability_service import ObservabilityService
+
+    service = ObservabilityService()
+    summary = service.get_summary(
+        project=args.project,
+        last=args.last,
+    )
+    print(service.format_cli_report(summary))
+    return 0
+
+
 def _add_task_id_argument(parser: argparse.ArgumentParser) -> None:
 
     parser.add_argument(
@@ -1286,6 +1299,23 @@ def build_parser() -> argparse.ArgumentParser:
         help="Provider: cursor, gemini, openai ou anthropic",
     )
     set_key_parser.set_defaults(func=cmd_set_key)
+
+    metrics_parser = subparsers.add_parser(
+        "metrics",
+        help="Exibe métricas e observabilidade de execuções (ai/metrics/)",
+    )
+    metrics_parser.add_argument(
+        "--project",
+        default=None,
+        help="Filtrar por projeto (ex.: auratime)",
+    )
+    metrics_parser.add_argument(
+        "--last",
+        type=int,
+        default=None,
+        help="Limitar últimas execuções exibidas (ex.: 10)",
+    )
+    metrics_parser.set_defaults(func=cmd_metrics)
 
     return parser
 

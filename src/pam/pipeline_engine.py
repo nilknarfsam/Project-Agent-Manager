@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -21,6 +22,7 @@ from pam.providers.gemini_provider import GeminiProvider
 from pam.providers.provider_router import ProviderRouter
 from pam.runtime_profiles import AgentRuntimeProfile, format_profile_error
 from pam.task_manager import TaskManager, TaskManagerError
+from pam.metrics_store import MetricsStore
 
 PIPELINES_DIR = "ai/pipelines"
 PIPELINE_RUNS_DIR = "ai/runs/pipelines"
@@ -236,11 +238,26 @@ class PipelineEngine:
         )
         model = self._resolved_model(profile, project)
 
+        started = time.perf_counter()
         try:
             provider = GeminiProvider(default_model=model)
             result_text = provider.generate(prompt, model=model)
         except ProviderError as exc:
+            duration_ms = int((time.perf_counter() - started) * 1000)
+            self._record_gemini_step_metrics(
+                project=project.name,
+                command=command,
+                agent_name=agent_name,
+                model=model,
+                duration_ms=duration_ms,
+                success=False,
+                task_id=task_id,
+                pipeline_name=pipeline_name,
+                error_summary=str(exc),
+            )
             raise RuntimeError(format_profile_error("gemini", exc)) from exc
+
+        duration_ms = int((time.perf_counter() - started) * 1000)
 
         summary = self._truncate(result_text, SUMMARY_CHARS)
 
@@ -266,12 +283,24 @@ class PipelineEngine:
             file_label=file_label,
         )
 
+        self._record_gemini_step_metrics(
+            project=project.name,
+            command=command,
+            agent_name=agent_name,
+            model=model,
+            duration_ms=duration_ms,
+            success=True,
+            task_id=task_id,
+            pipeline_name=pipeline_name,
+            run_file=run_path,
+        )
+
         fake_result = SimpleNamespace(
             id=f"gemini-{agent_name}",
             agent_id="",
             status="success",
             result=result_text,
-            duration_ms=0,
+            duration_ms=duration_ms,
         )
 
         return AgentStepRecord(
@@ -285,6 +314,38 @@ class PipelineEngine:
             provider="gemini",
             model=model,
         )
+
+    def _record_gemini_step_metrics(
+        self,
+        *,
+        project: str,
+        command: str,
+        agent_name: str,
+        model: str,
+        duration_ms: int,
+        success: bool,
+        task_id: str | None,
+        pipeline_name: str | None,
+        run_file: str | Path | None = None,
+        error_summary: str | None = None,
+    ) -> None:
+        try:
+            MetricsStore(self.base_dir).record_execution(
+                project=project,
+                command=command,
+                status="success" if success else "error",
+                success=success,
+                duration_ms=duration_ms,
+                agent=agent_name,
+                provider="gemini",
+                model=model,
+                task_id=task_id,
+                pipeline_name=pipeline_name,
+                run_file=run_file,
+                error_summary=error_summary,
+            )
+        except Exception:
+            pass
 
     def _execute_agent_step(
         self,
@@ -586,4 +647,44 @@ class PipelineEngine:
         print(f"[pipeline] JSON: {json_path}")
         print(f"[pipeline] Sucesso: {success}")
 
+        self._record_pipeline_metrics(
+            project=project.name,
+            pipeline_name=pipeline.name,
+            task_id=tid,
+            started_at=started_at,
+            finished_at=finished_at,
+            success=success,
+            run_file=md_path,
+            error_summary=final_summary if not success else None,
+        )
+
         return result
+
+    def _record_pipeline_metrics(
+        self,
+        *,
+        project: str,
+        pipeline_name: str,
+        task_id: str,
+        started_at: str,
+        finished_at: str,
+        success: bool,
+        run_file: Path,
+        error_summary: str | None,
+    ) -> None:
+        try:
+            duration_ms = MetricsStore.duration_ms_between(started_at, finished_at)
+            MetricsStore(self.base_dir).record_execution(
+                project=project,
+                command="pipeline",
+                status="success" if success else "error",
+                success=success,
+                duration_ms=duration_ms,
+                task_id=task_id,
+                pipeline_name=pipeline_name,
+                provider="mixed",
+                run_file=run_file,
+                error_summary=error_summary,
+            )
+        except Exception:
+            pass

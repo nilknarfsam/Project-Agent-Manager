@@ -1,33 +1,30 @@
-# Sprint 12 — Documentation Foundation
+# Sprint 13 — Observability & Metrics Foundation
 
 **Status:** em andamento  
-**Objetivo:** fundação oficial da documentação em PT-BR para comunidade, onboarding e demonstrações.
+**Objetivo:** fundação de observabilidade e métricas do PAM — acompanhar execuções, agentes, providers, pipelines, tasks, duração, sucesso/falha e histórico operacional.
 
 ## Entregas
 
-- [x] `docs/` — 11 guias em português brasileiro
-- [x] `getting_started.md` — PAM, OS4AI, filosofia, fluxo básico
-- [x] `installation.md` — Python, venv, chaves, problemas comuns
-- [x] `gui_workbench.md` — interface Agentic Workbench
-- [x] `context_builder.md` — seleção de arquivos e boas práticas
-- [x] `providers.md` — Cursor, Gemini, runtime híbrido
-- [x] `runtime_profiles.md` — YAML, fallback, otimização
-- [x] `tasks_lifecycle.md` — TASK-XXXX, status, pipeline_history
-- [x] `pipelines.md` — multi-agent orchestration
-- [x] `architecture.md` — visão arquitetural completa
-- [x] `onboarding.md` — onboard e create-project
-- [x] `faq.md` — perguntas frequentes
-- [x] README: Documentação, Quick Start, Agentic Workbench
-- [x] CHANGELOG 1.0.0-beta.3
+- [x] `ai/metrics/` e `ai/observability/` — estrutura de diretórios
+- [x] `metrics_store.py` — registro JSONL, sanitização, agregação básica
+- [x] `observability_service.py` — relatórios e agregações
+- [x] Integração em plan, run, review, resume, pipeline, ai-summary, ai-tasks, ai-docs
+- [x] CLI `metrics` com `--project` e `--last`
+- [x] GUI: aba **Observabilidade**
+- [x] `docs/observability.md`
+- [x] README: seção Observabilidade e Métricas
+- [x] CHANGELOG 1.0.0-beta.4
 
 ## Critérios de aceite
 
-- Documentação profissional em PT-BR
-- README atualizado com links para docs/
-- Linguagem consistente e acessível
-- Onboarding claro
-- Nenhuma alteração de runtime ou arquitetura
+- Comandos antigos funcionam (CLI e GUI intactos)
+- Cada execução gera evento JSONL em `ai/metrics/events_YYYYMM.jsonl`
+- Métricas não expõem API keys nem prompts completos
+- GUI mostra aba Observabilidade
+- CLI `metrics` funciona
+- Documentação atualizada
+- Arquitetura permanece modular (sem banco de dados, sem custos reais)
 
-## Próximo passo (Sprint 13)
+## Próximo passo (Sprint 14)
 
-Screenshots reais, site de documentação ou pipeline na GUI.
+Custos estimados por provider, exportação de métricas, retenção/rotação de arquivos ou dashboard histórico.

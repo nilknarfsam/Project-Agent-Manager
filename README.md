@@ -42,6 +42,7 @@ Documentação oficial em **português brasileiro** — `docs/`:
 | [Arquitetura](docs/architecture.md) | Visão técnica completa |
 | [Onboarding](docs/onboarding.md) | Integrar projetos ao OS4AI |
 | [FAQ](docs/faq.md) | Perguntas frequentes |
+| [Observabilidade](docs/observability.md) | Métricas, eventos JSONL, privacidade |
 
 ### Screenshots (em breve)
 
@@ -64,6 +65,7 @@ Documentação oficial em **português brasileiro** — `docs/`:
 | **Agentes** | `ai/agents/` — papéis especializados (architect, implementer, …) |
 | **Sprints** | entregas pequenas e versionadas (ver `CHANGELOG.md`) |
 | **Gemini (leve)** | `ai-summary`, `ai-tasks`, `ai-docs` — análise sem editar código |
+| **Observabilidade** | `ai/metrics/` — eventos JSONL, CLI `metrics`, aba na GUI |
 
 ## Requisitos
 
@@ -125,6 +127,7 @@ python -m pam.main --list-projects
 | `ai-docs` | Gemini | Rascunho de documentação |
 | `settings` | — | Status das chaves (mascaradas) |
 | `set-key` | — | Salva chave no `.env` local (entrada oculta) |
+| `metrics` | — | Métricas e observabilidade (`ai/metrics/`) |
 
 O **Context Engine** injeta `ai/context/` e `ai/memory/<projeto>/`. Cada execução também inclui a definição do **agente especializado** selecionado.
 
@@ -420,6 +423,28 @@ python -m pam.main resume auratime -p "Continue a análise"
 python -m pam.main clear-session auratime
 ```
 
+### Observabilidade e Métricas
+
+Fundação de observabilidade local — cada execução gera um evento em `ai/metrics/events_YYYYMM.jsonl` (JSONL mensal).
+
+| Recurso | Descrição |
+|---------|-----------|
+| **Eventos** | Metadados: projeto, comando, agente, provider, duração, sucesso/falha |
+| **Privacidade** | Sem prompts completos nem chaves de API |
+| **CLI** | `python -m pam.main metrics` |
+| **GUI** | Aba **Observabilidade** no Agentic Workbench |
+| **Agregações** | Total, por projeto/provider/agente, duração média, últimas execuções |
+
+```powershell
+python -m pam.main metrics
+python -m pam.main metrics --project auratime
+python -m pam.main metrics --last 10
+```
+
+Guia completo: [docs/observability.md](docs/observability.md).
+
+**Limitações (Sprint 13):** armazenamento local apenas; sem custos reais de tokens; sem banco de dados.
+
 ## Estrutura
 
 ```
@@ -436,11 +461,15 @@ project_agent_manager/
 │   ├── agents/        # definições de agentes especializados
 │   ├── runtime_profiles/  # provider/model por agente (YAML)
 │   ├── pipelines/     # pipelines multi-agente (YAML)
+│   ├── metrics/       # eventos JSONL de observabilidade
+│   ├── observability/ # reservado para agregações futuras
 │   └── runs/          # logs de execução (local, incl. pipelines/)
 ├── src/pam/
 │   ├── main.py
 │   ├── config_loader.py
 │   ├── cursor_runner.py
+│   ├── metrics_store.py
+│   ├── observability_service.py
 │   ├── context_engine.py
 │   ├── context_builder.py
 │   ├── session_store.py
