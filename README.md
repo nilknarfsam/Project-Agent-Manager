@@ -2,9 +2,53 @@
 
 ## Operating System for AI Development
 
+**Agentic Workbench for Software Architects** — orquestra agentes de IA em projetos reais com planejamento, execução, revisão, memória, contexto e rastreabilidade.
+
 O **Project Agent Manager** é um controlador Python para orquestrar agentes do [Cursor Python SDK](https://cursor.com/docs/sdk/python) em projetos reais — com planejamento, execução, revisão, memória, contexto, rastreabilidade e sprints pequenas.
 
 Não é só um CLI de prompts: é a camada que organiza **como** agentes trabalham nos seus repositórios (AuraTime, Nilkplayer e outros).
+
+## Quick Start
+
+```powershell
+cd C:\src\projects\project_agent_manager
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+copy .env.example .env
+python -m pam.main set-key cursor
+
+$env:PYTHONPATH = "src"
+python -m pam.main --list-projects
+python -m pam.main gui
+```
+
+Fluxo mínimo: **onboard** → **plan** → **run** → **review**. Detalhes em [docs/getting_started.md](docs/getting_started.md).
+
+## Documentação
+
+Documentação oficial em **português brasileiro** — `docs/`:
+
+| Guia | Descrição |
+|------|-----------|
+| [Primeiros passos](docs/getting_started.md) | O que é o PAM, OS4AI, fluxo básico |
+| [Instalação](docs/installation.md) | Python, venv, chaves, problemas comuns |
+| [GUI Workbench](docs/gui_workbench.md) | Interface gráfica completa |
+| [Context Builder](docs/context_builder.md) | Montar pacotes de contexto |
+| [Providers](docs/providers.md) | Cursor, Gemini, runtime híbrido |
+| [Runtime Profiles](docs/runtime_profiles.md) | Provider/model por agente |
+| [Ciclo de vida de tasks](docs/tasks_lifecycle.md) | TASK-XXXX, status, histórico |
+| [Pipelines](docs/pipelines.md) | Orquestração multi-agente |
+| [Arquitetura](docs/architecture.md) | Visão técnica completa |
+| [Onboarding](docs/onboarding.md) | Integrar projetos ao OS4AI |
+| [FAQ](docs/faq.md) | Perguntas frequentes |
+
+### Screenshots (em breve)
+
+<!-- Placeholder para capturas da GUI -->
+<!-- ![Agentic Workbench](docs/assets/workbench_overview.png) -->
+<!-- ![Context Builder](docs/assets/context_builder.png) -->
+<!-- ![Runtime Profiles](docs/assets/runtime_profiles.png) -->
 
 ### Capacidades
 
@@ -380,6 +424,7 @@ python -m pam.main clear-session auratime
 
 ```
 project_agent_manager/
+├── docs/              # documentação oficial PT-BR
 ├── protocol/          # OS4AI — especificação reutilizável (Sprint 5.5)
 ├── ai/
 │   ├── context/       # contexto global PAM (+ generated/)
@@ -415,7 +460,7 @@ project_agent_manager/
 └── README.md
 ```
 
-Detalhes de arquitetura: `ai/context/ARCHITECTURE.md`.
+Detalhes de arquitetura: [docs/architecture.md](docs/architecture.md) · `ai/context/ARCHITECTURE.md`
 
 ## AI Engineering Protocol
 

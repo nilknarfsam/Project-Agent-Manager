@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-beta.3] - 2026-05-23
+
+### Added (Sprint 12 — Documentation Foundation)
+
+- Diretório `docs/` — documentação oficial em português brasileiro (11 guias).
+- Guias: primeiros passos, instalação, GUI, Context Builder, providers, runtime profiles, tasks, pipelines, arquitetura, onboarding, FAQ.
+- README: seção Documentação, Quick Start, conceito Agentic Workbench, placeholders para screenshots.
+
+### Changed
+
+- README atualizado com links para `docs/`.
+- `CURRENT_SPRINT` atualizado para Sprint 12.
+- Projeto mais apresentável para comunidade, onboarding e demonstrações.
+
 ## [1.0.0-beta.2] - 2026-05-23
 
 ### Added (Sprint 11 — Context Builder Panel)
