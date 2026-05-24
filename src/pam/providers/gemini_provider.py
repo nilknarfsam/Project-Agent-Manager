@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 
 from pam.providers.base_provider import BaseProvider, ProviderError
+from pam.settings_manager import SettingsManager
 
 DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
 
@@ -20,7 +21,11 @@ class GeminiProvider(BaseProvider):
         api_key: str | None = None,
         default_model: str | None = None,
     ) -> None:
-        self.api_key = api_key if api_key is not None else os.environ.get("GEMINI_API_KEY")
+        self.api_key = api_key
+        if self.api_key is None:
+            self.api_key = SettingsManager().get_key("gemini") or os.environ.get(
+                "GEMINI_API_KEY"
+            )
         self.default_model = (
             default_model
             if default_model is not None
@@ -31,9 +36,9 @@ class GeminiProvider(BaseProvider):
     def ensure_api_key(self) -> str:
         if not self.api_key or not self.api_key.strip():
             raise ProviderError(
-                "GEMINI_API_KEY não definida.\n"
-                "Configure em .env: GEMINI_API_KEY=your_gemini_api_key_here\n"
-                "ou defina a variável de ambiente.\n"
+                "GEMINI_API_KEY não configurada.\n"
+                "Configure com: python -m pam.main set-key gemini\n"
+                "ou defina GEMINI_API_KEY no .env local.\n"
                 "Obtenha uma chave em: https://aistudio.google.com/apikey"
             )
         return self.api_key.strip()

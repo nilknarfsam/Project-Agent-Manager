@@ -15,6 +15,7 @@ from pam.config_loader import project_root
 from pam.context_engine import ContextEngine
 from pam.models import ProjectConfig
 from pam.session_store import SessionMetadata, SessionStore
+from pam.settings_manager import SettingsManager
 from pam.task_manager import TaskManager, TaskManagerError
 
 PROMPTS_DIR = "ai/prompts"
@@ -81,11 +82,13 @@ class CursorRunner:
         self.agent_registry = agent_registry or AgentRegistry()
 
     def ensure_api_key(self) -> str:
-        if not self.api_key:
+        key = SettingsManager().get_key("cursor") or self.api_key
+        if not key:
             raise RuntimeError(
-                "CURSOR_API_KEY não definida. Configure em .env ou no ambiente."
+                "CURSOR_API_KEY não configurada. "
+                "Configure com: python -m pam.main set-key cursor"
             )
-        return self.api_key
+        return key
 
     def build_agent_options(
         self,

@@ -814,6 +814,50 @@ def cmd_gui(_args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_settings(_args: argparse.Namespace) -> int:
+    """Lista status dos providers (chaves mascaradas)."""
+    from pam.settings_manager import SettingsManager
+
+    manager = SettingsManager()
+    print(manager.format_status_report())
+    return 0
+
+
+def cmd_set_key(args: argparse.Namespace) -> int:
+    """Salva chave de API no .env local (entrada oculta)."""
+    import getpass
+
+    from pam.settings_manager import SettingsManager, SettingsManagerError
+
+    try:
+        manager = SettingsManager()
+        manager.validate_provider(args.provider)
+    except SettingsManagerError as exc:
+        print(f"[set-key] Erro: {exc}", file=sys.stderr)
+        return 1
+
+    label = args.provider.capitalize()
+    try:
+        value = getpass.getpass(f"Digite a chave {label} (não será exibida): ")
+    except (EOFError, KeyboardInterrupt):
+        print("\n[set-key] Operação cancelada.", file=sys.stderr)
+        return 1
+
+    if not value.strip():
+        print("[set-key] Chave vazia — operação cancelada.", file=sys.stderr)
+        return 1
+
+    try:
+        manager.set_key(args.provider, value)
+    except SettingsManagerError as exc:
+        print(f"[set-key] Erro: {exc}", file=sys.stderr)
+        return 1
+
+    masked = SettingsManager.mask_key(value)
+    print(f"[set-key] {label} salvo em .env local ({masked})")
+    return 0
+
+
 def cmd_pipeline(args: argparse.Namespace) -> int:
     """Executa pipeline multi-agente sequencial para uma task."""
     from pam.pipeline_engine import PipelineEngine, PipelineEngineError
@@ -1225,6 +1269,23 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _add_ai_project_argument(ai_docs_parser)
     ai_docs_parser.set_defaults(func=cmd_ai_docs)
+
+    settings_parser = subparsers.add_parser(
+        "settings",
+        help="Lista status das chaves de API (valores mascarados)",
+    )
+    settings_parser.set_defaults(func=cmd_settings)
+
+    set_key_parser = subparsers.add_parser(
+        "set-key",
+        help="Salva chave de API no .env local (entrada oculta)",
+    )
+    set_key_parser.add_argument(
+        "provider",
+        choices=["cursor", "gemini", "openai", "anthropic"],
+        help="Provider: cursor, gemini, openai ou anthropic",
+    )
+    set_key_parser.set_defaults(func=cmd_set_key)
 
     return parser
 

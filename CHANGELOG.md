@@ -7,17 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.9.0] - 2026-05-23
 
-### Added (Sprint 8 — Gemini Provider Integration)
+### Added (Sprint 8 — API Keys Settings + Gemini Provider)
 
-- Pacote `google-genai` e variáveis `GEMINI_API_KEY`, `GEMINI_MODEL` em `.env.example`.
+- `settings_manager.py` — leitura/escrita segura de `.env`, mascaramento de chaves.
+- Comandos `settings` e `set-key <provider>` (cursor, gemini, openai, anthropic) com `getpass`.
+- GUI: aba **Configurações** com status mascarado e campos password por provider.
+- Pacote `google-genai` e variáveis em `.env.example` (incl. OpenAI, Anthropic).
 - Módulos `src/pam/providers/` — `base_provider`, `gemini_provider`, `provider_router`.
-- Roteamento Gemini (leve) vs Cursor (profundo): analysis, docs, tasks → Gemini; code_edit, plan/run → Cursor.
-- Comandos `ai-summary`, `ai-tasks`, `ai-docs` — usam Gemini, não Cursor.
-- Serviço `ai_service.py` — contexto PAM + chamadas Gemini.
-- README: seção Multi-Provider Runtime.
+- Comandos `ai-summary`, `ai-tasks`, `ai-docs` — Gemini para tarefas leves.
+- README: seções Provider Settings e Multi-Provider Runtime.
 
 ### Changed
 
+- `cursor_runner` e `gemini_provider` usam `SettingsManager` para chaves.
 - `CURRENT_SPRINT` atualizado para Sprint 8.
 
 ## [0.8.0] - 2026-05-23

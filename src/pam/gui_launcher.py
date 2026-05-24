@@ -14,20 +14,24 @@ from dotenv import load_dotenv
 
 from pam.agent_registry import AgentRegistry
 from pam.config_loader import list_projects, load_project
+from pam.settings_manager import SettingsManager, SettingsManagerError
 
 
 class PamGuiApp:
     """Launcher desktop que delega execução aos handlers da CLI."""
 
     COMMANDS = ("plan", "run", "review", "resume")
+    KEY_PROVIDERS = ("cursor", "gemini", "openai", "anthropic")
 
     def __init__(self, root: tk.Tk) -> None:
         self.root = root
         self.root.title("Project Agent Manager — Desktop Launcher")
-        self.root.minsize(720, 560)
+        self.root.minsize(720, 600)
 
+        self._settings = SettingsManager()
         self._log_queue: queue.Queue[tuple[str, object]] = queue.Queue()
         self._running = False
+        self._provider_status_labels: dict[str, ttk.Label] = {}
 
         self.project_var = tk.StringVar()
         self.folder_var = tk.StringVar()
@@ -39,14 +43,25 @@ class PamGuiApp:
 
         self._build_ui()
         self.refresh_projects()
+        self.refresh_provider_status()
         self._poll_log_queue()
 
     def _build_ui(self) -> None:
-        pad = {"padx": 8, "pady": 4}
-        main = ttk.Frame(self.root, padding=8)
-        main.pack(fill=tk.BOTH, expand=True)
+        notebook = ttk.Notebook(self.root)
+        notebook.pack(fill=tk.BOTH, expand=True, padx=8, pady=8)
 
-        # --- Projeto cadastrado ---
+        self.tab_ops = ttk.Frame(notebook, padding=4)
+        self.tab_settings = ttk.Frame(notebook, padding=8)
+        notebook.add(self.tab_ops, text="Operações")
+        notebook.add(self.tab_settings, text="Configurações")
+
+        self._build_ops_tab()
+        self._build_settings_tab()
+
+    def _build_ops_tab(self) -> None:
+        pad = {"padx": 8, "pady": 4}
+        main = self.tab_ops
+
         proj_frame = ttk.LabelFrame(main, text="Projeto cadastrado (PAM)", padding=8)
         proj_frame.pack(fill=tk.X, **pad)
 
@@ -65,7 +80,6 @@ class PamGuiApp:
         self.repo_label = ttk.Label(proj_frame, text="Repositório: —", wraplength=680)
         self.repo_label.pack(anchor=tk.W, pady=(4, 0))
 
-        # --- Pasta (onboard) ---
         folder_frame = ttk.LabelFrame(main, text="Pasta do repositório", padding=8)
         folder_frame.pack(fill=tk.X, **pad)
 
@@ -81,13 +95,14 @@ class PamGuiApp:
         onboard_row = ttk.Frame(folder_frame)
         onboard_row.pack(fill=tk.X, pady=(6, 0))
         ttk.Checkbutton(
-            onboard_row, text="--force (sobrescrever templates)", variable=self.force_onboard_var
+            onboard_row,
+            text="--force (sobrescrever templates)",
+            variable=self.force_onboard_var,
         ).pack(side=tk.LEFT)
         ttk.Button(onboard_row, text="Executar onboard", command=self._run_onboard).pack(
             side=tk.RIGHT
         )
 
-        # --- Comando agentico ---
         cmd_frame = ttk.LabelFrame(main, text="Comando agentico", padding=8)
         cmd_frame.pack(fill=tk.X, **pad)
 
@@ -131,17 +146,119 @@ class PamGuiApp:
             side=tk.LEFT, padx=(8, 0)
         )
 
-        # --- Log ---
         log_frame = ttk.LabelFrame(main, text="Saída / log", padding=8)
         log_frame.pack(fill=tk.BOTH, expand=True, **pad)
 
         self.log_text = scrolledtext.ScrolledText(
-            log_frame, height=16, state=tk.DISABLED, wrap=tk.WORD, font=("Consolas", 10)
+            log_frame, height=14, state=tk.DISABLED, wrap=tk.WORD, font=("Consolas", 10)
         )
         self.log_text.pack(fill=tk.BOTH, expand=True)
 
         self._refresh_agents()
         self._on_command_changed()
+
+    def _build_settings_tab(self) -> None:
+        frame = ttk.LabelFrame(
+            self.tab_settings,
+            text="Chaves de API (.env local — nunca exibidas por completo)",
+            padding=12,
+        )
+        frame.pack(fill=tk.BOTH, expand=True)
+
+        ttk.Label(
+            frame,
+            text=(
+                "Configure providers abaixo. Valores são salvos apenas em .env "
+                "(gitignored). Cursor: edição profunda. Gemini: tarefas leves (ai-*)."
+            ),
+            wraplength=640,
+        ).pack(anchor=tk.W, pady=(0, 12))
+
+        for status in self._settings.list_providers_status():
+            row = ttk.Frame(frame)
+            row.pack(fill=tk.X, pady=4)
+
+            ttk.Label(row, text=f"{status.label}:", width=12).pack(side=tk.LEFT)
+            status_label = ttk.Label(row, text="—", width=36)
+            status_label.pack(side=tk.LEFT, padx=(4, 8))
+            self._provider_status_labels[status.provider] = status_label
+
+            ttk.Button(
+                row,
+                text=f"Inserir/Atualizar chave {status.label}",
+                command=lambda p=status.provider: self._prompt_set_key(p),
+            ).pack(side=tk.RIGHT)
+
+        ttk.Button(
+            frame,
+            text="Atualizar status",
+            command=self.refresh_provider_status,
+        ).pack(anchor=tk.W, pady=(16, 0))
+
+    def refresh_provider_status(self) -> None:
+        """Atualiza labels de status na aba Configurações."""
+        load_dotenv(self._settings.env_path, override=True)
+        for item in self._settings.list_providers_status():
+            label = self._provider_status_labels.get(item.provider)
+            if not label:
+                continue
+            if item.configured:
+                text = f"configurado ({item.masked})"
+            else:
+                text = "não configurado"
+            label.configure(text=text)
+
+    def _prompt_set_key(self, provider: str) -> None:
+        """Dialog para inserir chave com campo password."""
+        try:
+            self._settings.validate_provider(provider)
+        except SettingsManagerError as exc:
+            messagebox.showerror("PAM", str(exc))
+            return
+
+        label = provider.capitalize()
+        dialog = tk.Toplevel(self.root)
+        dialog.title(f"Chave {label}")
+        dialog.transient(self.root)
+        dialog.grab_set()
+        dialog.resizable(False, False)
+
+        ttk.Label(
+            dialog,
+            text=f"Digite a chave {label} (não será exibida):",
+            padding=(12, 12, 12, 4),
+        ).pack()
+
+        key_var = tk.StringVar()
+        entry = ttk.Entry(dialog, textvariable=key_var, show="*", width=48)
+        entry.pack(padx=12, pady=4)
+        entry.focus_set()
+
+        btn_row = ttk.Frame(dialog, padding=12)
+        btn_row.pack()
+
+        def save() -> None:
+            value = key_var.get().strip()
+            if not value:
+                messagebox.showwarning("PAM", "Chave vazia — operação cancelada.")
+                return
+            try:
+                self._settings.set_key(provider, value)
+            except SettingsManagerError as exc:
+                messagebox.showerror("PAM", str(exc))
+                return
+            masked = SettingsManager.mask_key(value)
+            self.refresh_provider_status()
+            messagebox.showinfo("PAM", f"Chave {label} salva ({masked})")
+            dialog.destroy()
+
+        def cancel() -> None:
+            dialog.destroy()
+
+        ttk.Button(btn_row, text="Salvar", command=save).pack(side=tk.LEFT, padx=4)
+        ttk.Button(btn_row, text="Cancelar", command=cancel).pack(side=tk.LEFT, padx=4)
+        dialog.bind("<Return>", lambda _e: save())
+        dialog.bind("<Escape>", lambda _e: cancel())
 
     def _append_log(self, text: str, *, tag: str | None = None) -> None:
         self.log_text.configure(state=tk.NORMAL)
@@ -235,9 +352,6 @@ class PamGuiApp:
             stderr = sys.stderr
 
             class _Writer:
-                def __init__(self, stream_name: str) -> None:
-                    self.stream_name = stream_name
-
                 def write(self, data: str) -> None:
                     if data:
                         self._log_queue.put(("log", data))
@@ -246,10 +360,10 @@ class PamGuiApp:
                     pass
 
             try:
-                sys.stdout = _Writer("out")
-                sys.stderr = _Writer("err")
+                sys.stdout = _Writer()
+                sys.stderr = _Writer()
                 exit_code = func()
-            except Exception as exc:  # noqa: BLE001 — exibir no log da GUI
+            except Exception as exc:  # noqa: BLE001
                 self._log_queue.put(("log", f"Erro inesperado: {exc}\n"))
                 exit_code = 1
             finally:

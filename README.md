@@ -79,6 +79,8 @@ python -m pam.main --list-projects
 | `ai-summary` | Gemini | Sumariza contexto do projeto (leve) |
 | `ai-tasks` | Gemini | Sugere tasks pequenas |
 | `ai-docs` | Gemini | Rascunho de documentação |
+| `settings` | — | Status das chaves (mascaradas) |
+| `set-key` | — | Salva chave no `.env` local (entrada oculta) |
 
 O **Context Engine** injeta `ai/context/` e `ai/memory/<projeto>/`. Cada execução também inclui a definição do **agente especializado** selecionado.
 
@@ -235,6 +237,35 @@ architect → implementer → reviewer → test_writer → docs_writer → relea
 
 Comandos single-agent continuam disponíveis e inalterados.
 
+### Provider Settings
+
+Chaves ficam **apenas no `.env` local** (gitignored). Nunca são salvas em JSON no repositório nem exibidas por completo em log ou GUI.
+
+**Mascaramento:** `sk-...abcd`, `AIza...WXYZ` (prefixo + sufixo).
+
+**CLI:**
+
+```powershell
+python -m pam.main settings
+python -m pam.main set-key cursor
+python -m pam.main set-key gemini
+python -m pam.main set-key openai
+python -m pam.main set-key anthropic
+```
+
+`set-key` usa entrada oculta (`getpass`) e confirma apenas o valor mascarado.
+
+**GUI:** `python -m pam.main gui` → aba **Configurações** — status por provider e botões *Inserir/Atualizar chave* com campo password.
+
+| Provider | Variável | Uso no PAM |
+|----------|----------|------------|
+| Cursor | `CURSOR_API_KEY` | `plan`, `run`, `review`, `pipeline` |
+| Gemini | `GEMINI_API_KEY` | `ai-summary`, `ai-tasks`, `ai-docs` |
+| OpenAI | `OPENAI_API_KEY` | reservado (futuro) |
+| Anthropic | `ANTHROPIC_API_KEY` | reservado (futuro) |
+
+`.env.example` contém apenas placeholders — copie para `.env` e use `set-key`.
+
 ### Multi-Provider Runtime
 
 O PAM usa **dois runtimes complementares** — Gemini não substitui Cursor.
@@ -306,6 +337,7 @@ project_agent_manager/
 │   ├── template_engine.py
 │   ├── gui_launcher.py
 │   ├── ai_service.py
+│   ├── settings_manager.py
 │   ├── providers/
 │   ├── templates/
 │   └── models.py

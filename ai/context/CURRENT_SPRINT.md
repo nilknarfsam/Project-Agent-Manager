@@ -1,23 +1,26 @@
-# Sprint 8 — Gemini Provider Integration
+# Sprint 8 — API Keys Settings + Gemini Provider
 
 **Status:** em andamento  
-**Objetivo:** adicionar Gemini como provider leve para análise, docs e tasks — sem substituir Cursor.
+**Objetivo:** configuração segura de chaves de API e runtime multi-provider com Gemini para tarefas leves.
 
 ## Entregas
 
-- [x] `google-genai` + `.env.example` (`GEMINI_API_KEY`, `GEMINI_MODEL`)
-- [x] `src/pam/providers/` — base, gemini, router
-- [x] Comandos `ai-summary`, `ai-tasks`, `ai-docs`
-- [x] `ai_service.py` — contexto + Gemini
-- [x] README Multi-Provider Runtime, CHANGELOG 0.9.0
+- [x] `settings_manager.py` — .env seguro, mascaramento, get/set/has_key
+- [x] Comandos `settings`, `set-key` (getpass)
+- [x] GUI aba Configurações (password, status mascarado)
+- [x] `.env.example` com 4 providers + GEMINI_MODEL
+- [x] `providers/` + `ai-summary`, `ai-tasks`, `ai-docs`
+- [x] README Provider Settings + Multi-Provider
 
 ## Critérios de aceite
 
-- CLI Cursor inalterada (plan/run/review/pipeline)
-- Sem chaves reais versionadas
-- Gemini falha com mensagem amigável sem `GEMINI_API_KEY`
-- `provider_router` separa Gemini e Cursor
+- `.env` gitignored; `.env.example` só placeholders
+- `settings` não expõe chaves completas
+- `set-key` persiste no .env local
+- GUI cadastra chave com campo password
+- Comandos Cursor inalterados
+- Gemini funciona com `GEMINI_API_KEY` configurada
 
 ## Próximo passo (Sprint 9)
 
-A definir — possivelmente persistência de outputs Gemini ou integração com memória/roadmap.
+Providers OpenAI/Anthropic ou persistência de outputs Gemini.
