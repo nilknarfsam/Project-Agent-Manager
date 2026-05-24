@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 
 from pam.agent_registry import AgentRegistry
 from pam.config_loader import list_projects, load_project
+from pam.runtime_profiles import list_resolved_profiles
 from pam.settings_manager import SettingsManager, SettingsManagerError
 
 
@@ -52,11 +53,14 @@ class PamGuiApp:
 
         self.tab_ops = ttk.Frame(notebook, padding=4)
         self.tab_settings = ttk.Frame(notebook, padding=8)
+        self.tab_profiles = ttk.Frame(notebook, padding=8)
         notebook.add(self.tab_ops, text="Operações")
         notebook.add(self.tab_settings, text="Configurações")
+        notebook.add(self.tab_profiles, text="Runtime Profiles")
 
         self._build_ops_tab()
         self._build_settings_tab()
+        self._build_profiles_tab()
 
     def _build_ops_tab(self) -> None:
         pad = {"padx": 8, "pady": 4}
@@ -194,6 +198,72 @@ class PamGuiApp:
             text="Atualizar status",
             command=self.refresh_provider_status,
         ).pack(anchor=tk.W, pady=(16, 0))
+
+    def _build_profiles_tab(self) -> None:
+        frame = ttk.LabelFrame(
+            self.tab_profiles,
+            text="Runtime Profiles (somente leitura)",
+            padding=12,
+        )
+        frame.pack(fill=tk.BOTH, expand=True)
+
+        ttk.Label(
+            frame,
+            text=(
+                "Provider e modelo por agente conforme "
+                "ai/runtime_profiles/default_profiles.yaml. "
+                "Agentes sem entrada usam fallback Cursor."
+            ),
+            wraplength=640,
+        ).pack(anchor=tk.W, pady=(0, 8))
+
+        columns = ("agent", "provider", "model")
+        tree_frame = ttk.Frame(frame)
+        tree_frame.pack(fill=tk.BOTH, expand=True)
+
+        self.profiles_tree = ttk.Treeview(
+            tree_frame,
+            columns=columns,
+            show="headings",
+            height=12,
+        )
+        self.profiles_tree.heading("agent", text="Agente")
+        self.profiles_tree.heading("provider", text="Provider")
+        self.profiles_tree.heading("model", text="Modelo")
+        self.profiles_tree.column("agent", width=140)
+        self.profiles_tree.column("provider", width=100)
+        self.profiles_tree.column("model", width=280)
+
+        scroll = ttk.Scrollbar(
+            tree_frame, orient=tk.VERTICAL, command=self.profiles_tree.yview
+        )
+        self.profiles_tree.configure(yscrollcommand=scroll.set)
+        self.profiles_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scroll.pack(side=tk.RIGHT, fill=tk.Y)
+
+        ttk.Button(
+            frame,
+            text="Atualizar profiles",
+            command=self.refresh_runtime_profiles,
+        ).pack(anchor=tk.W, pady=(8, 0))
+
+        self.refresh_runtime_profiles()
+
+    def refresh_runtime_profiles(self) -> None:
+        """Atualiza tabela de runtime profiles (somente leitura)."""
+        for item in self.profiles_tree.get_children():
+            self.profiles_tree.delete(item)
+
+        for profile in list_resolved_profiles():
+            self.profiles_tree.insert(
+                "",
+                tk.END,
+                values=(
+                    profile.agent,
+                    profile.provider,
+                    profile.display_model(),
+                ),
+            )
 
     def refresh_provider_status(self) -> None:
         """Atualiza labels de status na aba Configurações."""

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pam.providers.gemini_provider import GeminiProvider
+from pam.runtime_profiles import AgentRuntimeProfile, get_agent_profile
 
 GEMINI_TASK_TYPES = frozenset(
     {
@@ -73,6 +74,14 @@ class ProviderRouter:
                 f"Tarefa '{task_type}' é leve — use ai-summary/ai-tasks/ai-docs."
             )
 
+    def route_agent(self, agent_name: str) -> AgentRuntimeProfile:
+        """
+        Resolve provider/model/mode para um agente via runtime profiles.
+
+        Usa ai/runtime_profiles/default_profiles.yaml com fallback Cursor.
+        """
+        return get_agent_profile(agent_name)
+
     def describe_routing(self) -> str:
         """Resumo legível do roteamento (debug/docs)."""
         lines = [
@@ -83,5 +92,8 @@ class ProviderRouter:
             "",
             "Cursor (profundo):",
             "  " + ", ".join(sorted(CURSOR_TASK_TYPES)),
+            "",
+            "Agent runtime profiles:",
+            "  ai/runtime_profiles/default_profiles.yaml (route_agent)",
         ]
         return "\n".join(lines)

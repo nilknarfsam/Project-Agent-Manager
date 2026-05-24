@@ -6,6 +6,7 @@ import json
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import yaml
@@ -15,6 +16,10 @@ from pam.config_loader import project_root
 from pam.cursor_runner import AgentStepRecord, CursorRunner
 from pam.models import ProjectConfig
 from pam.pipeline_result import PipelineResult, PipelineStepResult
+from pam.providers.base_provider import ProviderError
+from pam.providers.gemini_provider import GeminiProvider
+from pam.providers.provider_router import ProviderRouter
+from pam.runtime_profiles import AgentRuntimeProfile, format_profile_error
 from pam.task_manager import TaskManager, TaskManagerError
 
 PIPELINES_DIR = "ai/pipelines"
@@ -50,6 +55,7 @@ class PipelineEngine:
         self.runner = runner or CursorRunner()
         self.task_manager = task_manager or TaskManager(self.base_dir)
         self.agent_registry = agent_registry or AgentRegistry(self.base_dir)
+        self.provider_router = ProviderRouter()
 
     def pipelines_dir(self) -> Path:
         return self.base_dir / PIPELINES_DIR
@@ -148,6 +154,181 @@ class PipelineEngine:
         combined = (accumulated + "\n\n" + block).strip() if accumulated else block.strip()
         return self._truncate(combined, MAX_CONTEXT_CHARS)
 
+    @staticmethod
+    def _resolved_model(profile: AgentRuntimeProfile, project: ProjectConfig) -> str:
+        if profile.model:
+            return profile.model
+        if profile.provider == "gemini":
+            return profile.display_model()
+        return project.default_model
+
+    def _save_gemini_pipeline_run(
+        self,
+        project: ProjectConfig,
+        *,
+        agent_name: str,
+        command: str,
+        mode: str,
+        prompt: str,
+        result_text: str,
+        model: str,
+        task_path: Path | None,
+        file_label: str,
+    ) -> Path:
+        """Persiste log de step Gemini em ai/runs/pipelines/."""
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        base_name = f"{timestamp}_{project.name}_{file_label}"
+        runs_dir = self.runner.pipelines_dir()
+
+        payload = {
+            "timestamp": timestamp,
+            "project": project.name,
+            "command": command,
+            "mode": mode,
+            "agent_name": agent_name,
+            "provider": "gemini",
+            "model": model,
+            "repo_path": str(project.repo_path),
+            "task_path": str(task_path) if task_path else None,
+            "status": "success",
+            "run_id": f"gemini-{timestamp}",
+            "agent_id": "",
+            "duration_ms": 0,
+            "result": result_text,
+            "file_label": file_label,
+        }
+
+        json_path = runs_dir / f"{base_name}.json"
+        json_path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+
+        md_path = runs_dir / f"{base_name}.md"
+        md_path.write_text(
+            self.runner._format_run_markdown(payload, prompt),
+            encoding="utf-8",
+        )
+        return md_path
+
+    def _run_gemini_agent_step(
+        self,
+        project: ProjectConfig,
+        agent_name: str,
+        profile: AgentRuntimeProfile,
+        *,
+        task_path: Path | None = None,
+        previous_context: str | None = None,
+        pipeline_name: str | None = None,
+        task_id: str | None = None,
+        step_index: int | None = None,
+    ) -> AgentStepRecord:
+        """Executa step de pipeline via Gemini (agentes leves)."""
+        command = self.runner.pipeline_command_for_agent(agent_name)
+        mode = profile.mode or "gemini"
+        prompt = self.runner.build_pipeline_step_prompt(
+            agent_name,
+            command=command,
+            task_path=task_path,
+            previous_context=previous_context,
+            project=project.name,
+            pipeline_name=pipeline_name,
+        )
+        model = self._resolved_model(profile, project)
+
+        try:
+            provider = GeminiProvider(default_model=model)
+            result_text = provider.generate(prompt, model=model)
+        except ProviderError as exc:
+            raise RuntimeError(format_profile_error("gemini", exc)) from exc
+
+        summary = self._truncate(result_text, SUMMARY_CHARS)
+
+        label_parts = ["pipeline"]
+        if pipeline_name:
+            label_parts.append(pipeline_name)
+        if task_id:
+            label_parts.append(task_id.lower())
+        if step_index is not None:
+            label_parts.append(f"step{step_index:02d}")
+        label_parts.append(agent_name)
+        file_label = "_".join(label_parts)
+
+        run_path = self._save_gemini_pipeline_run(
+            project,
+            agent_name=agent_name,
+            command=command,
+            mode=mode,
+            prompt=prompt,
+            result_text=result_text,
+            model=model,
+            task_path=task_path,
+            file_label=file_label,
+        )
+
+        fake_result = SimpleNamespace(
+            id=f"gemini-{agent_name}",
+            agent_id="",
+            status="success",
+            result=result_text,
+            duration_ms=0,
+        )
+
+        return AgentStepRecord(
+            agent_name=agent_name,
+            command=command,
+            mode=mode,
+            prompt=prompt,
+            run_path=run_path,
+            result=fake_result,  # type: ignore[arg-type]
+            summary=summary,
+            provider="gemini",
+            model=model,
+        )
+
+    def _execute_agent_step(
+        self,
+        project: ProjectConfig,
+        agent_name: str,
+        profile: AgentRuntimeProfile,
+        *,
+        task_path: Path | None = None,
+        previous_context: str | None = None,
+        pipeline_name: str | None = None,
+        task_id: str | None = None,
+        step_index: int | None = None,
+    ) -> AgentStepRecord:
+        """Executa step conforme runtime profile (Cursor ou Gemini)."""
+        if profile.provider == "cursor":
+            return self.runner.run_agent_step(
+                project,
+                agent_name,
+                task_path=task_path,
+                previous_context=previous_context,
+                pipeline_name=pipeline_name,
+                task_id=task_id,
+                step_index=step_index,
+                mode_override=profile.mode,
+                model_override=profile.model,
+                provider=profile.provider,
+            )
+        if profile.provider == "gemini":
+            return self._run_gemini_agent_step(
+                project,
+                agent_name,
+                profile,
+                task_path=task_path,
+                previous_context=previous_context,
+                pipeline_name=pipeline_name,
+                task_id=task_id,
+                step_index=step_index,
+            )
+        raise PipelineEngineError(
+            f"Provider '{profile.provider}' para agente '{agent_name}' "
+            "ainda não suportado em pipeline. "
+            "Use cursor ou gemini em ai/runtime_profiles/default_profiles.yaml."
+        )
+
     def _build_final_summary(self, steps: list[PipelineStepResult]) -> str:
         if not steps:
             return "Nenhum step executado."
@@ -199,6 +380,10 @@ class PipelineEngine:
                     f"- Fim: {step.finished_at}",
                 ]
             )
+            if step.provider:
+                md_lines.append(f"- Provider: {step.provider}")
+            if step.model:
+                md_lines.append(f"- Modelo: {step.model}")
             if step.run_path:
                 md_lines.append(f"- Log: `{step.run_path}`")
             if step.error:
@@ -265,15 +450,19 @@ class PipelineEngine:
 
         for index, agent in enumerate(steps, start=1):
             step_started = self.utc_now()
+            profile = self.provider_router.route_agent(agent)
+            resolved_model = self._resolved_model(profile, project)
             print(
                 f"[pipeline] Step {index}/{len(steps)}: {agent} "
-                f"({pipeline.name} / {tid})"
+                f"({pipeline.name} / {tid}) "
+                f"[provider={profile.provider}, model={resolved_model}]"
             )
 
             try:
-                record = self.runner.run_agent_step(
+                record = self._execute_agent_step(
                     project,
                     agent,
+                    profile,
                     task_path=task_path,
                     previous_context=accumulated_context or None,
                     pipeline_name=pipeline.name,
@@ -289,6 +478,8 @@ class PipelineEngine:
                     finished_at=step_finished,
                     summary="",
                     error=str(exc),
+                    provider=profile.provider,
+                    model=resolved_model,
                 )
                 step_results.append(step_result)
                 self.task_manager.record_pipeline_step(
@@ -301,6 +492,8 @@ class PipelineEngine:
                     summary="",
                     run_path=None,
                     error=str(exc),
+                    provider=profile.provider,
+                    model=resolved_model,
                 )
                 success = False
                 break
@@ -312,6 +505,7 @@ class PipelineEngine:
                 else "error"
             )
             summary = record.summary
+            step_model = record.model or resolved_model
 
             step_result = PipelineStepResult(
                 agent=agent,
@@ -320,6 +514,8 @@ class PipelineEngine:
                 finished_at=step_finished,
                 summary=summary,
                 run_path=str(record.run_path),
+                provider=record.provider,
+                model=step_model,
             )
             step_results.append(step_result)
             prompt_log[agent] = record.prompt
@@ -333,6 +529,8 @@ class PipelineEngine:
                 finished_at=step_finished,
                 summary=summary,
                 run_path=str(record.run_path),
+                provider=record.provider,
+                model=step_model,
             )
 
             if status == "error":

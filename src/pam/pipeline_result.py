@@ -17,6 +17,8 @@ class PipelineStepResult:
     summary: str
     run_path: str | None = None
     error: str | None = None
+    provider: str | None = None
+    model: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -31,6 +33,8 @@ class PipelineStepResult:
             summary=str(data.get("summary", "")),
             run_path=data.get("run_path"),
             error=data.get("error"),
+            provider=data.get("provider"),
+            model=data.get("model"),
         )
 
 

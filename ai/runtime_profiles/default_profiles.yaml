@@ -1,0 +1,23 @@
+architect:
+  provider: gemini
+  model: gemini-2.5-pro
+
+implementer:
+  provider: cursor
+  mode: deep_agent
+
+reviewer:
+  provider: gemini
+  model: gemini-2.5-flash
+
+test_writer:
+  provider: gemini
+  model: gemini-2.5-flash
+
+docs_writer:
+  provider: gemini
+  model: gemini-2.5-flash
+
+release_manager:
+  provider: gemini
+  model: gemini-2.5-pro

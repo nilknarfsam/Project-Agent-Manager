@@ -282,6 +282,46 @@ Roteamento (`provider_router.py`):
 | `analysis`, `summarize`, `docs`, `roadmap`, `tasks` | Gemini |
 | `code_edit`, `refactor`, `deep_agent`, `plan`, `run`, `review` | Cursor |
 
+### Agent Runtime Profiles
+
+Cada agente especializado pode usar **provider e modelo diferentes** — pipelines híbridos com otimização de custo e performance.
+
+Configuração em `ai/runtime_profiles/default_profiles.yaml`:
+
+```yaml
+architect:
+  provider: gemini
+  model: gemini-2.5-pro
+
+implementer:
+  provider: cursor
+  mode: deep_agent
+
+reviewer:
+  provider: gemini
+  model: gemini-2.5-flash
+```
+
+| Conceito | Descrição |
+|----------|-----------|
+| **Agentes híbridos** | Um pipeline pode misturar Cursor (código) e Gemini (análise/docs) |
+| **Providers diferentes** | `architect` e `reviewer` no Gemini; `implementer` no Cursor |
+| **Custo / performance** | Modelos flash para steps leves; pro apenas onde necessário |
+| **Runtime configurável** | YAML editável sem alterar código; GUI mostra profiles (somente leitura) |
+
+Resolução (`runtime_profiles.py` + `provider_router.route_agent`):
+
+- Profile definido no YAML → provider/model/mode do agente
+- Profile ausente → **fallback Cursor** (comportamento legado)
+- Provider indisponível → mensagem amigável; demais comandos continuam
+
+Logs de pipeline e `pipeline_history` registram `provider` e `model` por step.
+
+```powershell
+python -m pam.main gui   # aba Runtime Profiles
+python -m pam.main pipeline auratime TASK-0001
+```
+
 Variáveis de ambiente:
 
 ```env
@@ -321,6 +361,7 @@ project_agent_manager/
 │   ├── tasks/         # Task Lifecycle (active/completed/blocked/archived)
 │   ├── prompts/       # templates plan, run, review
 │   ├── agents/        # definições de agentes especializados
+│   ├── runtime_profiles/  # provider/model por agente (YAML)
 │   ├── pipelines/     # pipelines multi-agente (YAML)
 │   └── runs/          # logs de execução (local, incl. pipelines/)
 ├── src/pam/
@@ -333,6 +374,7 @@ project_agent_manager/
 │   ├── task_manager.py
 │   ├── pipeline_engine.py
 │   ├── pipeline_result.py
+│   ├── runtime_profiles.py
 │   ├── project_bootstrap.py
 │   ├── template_engine.py
 │   ├── gui_launcher.py

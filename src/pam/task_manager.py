@@ -440,6 +440,8 @@ class TaskManager:
         summary: str,
         run_path: str | None = None,
         error: str | None = None,
+        provider: str | None = None,
+        model: str | None = None,
     ) -> TaskMetadata:
         """Registra step de pipeline em pipeline_history da task."""
         meta = self.load(task_id)
@@ -452,6 +454,10 @@ class TaskManager:
             "summary": self._truncate_pipeline_summary(summary),
             "run_path": run_path,
         }
+        if provider:
+            entry["provider"] = provider
+        if model:
+            entry["model"] = model
         if error:
             entry["error"] = error
         meta.pipeline_history.append(entry)

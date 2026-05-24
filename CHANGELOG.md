@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-beta] - 2026-05-23
+
+### Added (Sprint 9 — Agent Runtime Profiles)
+
+- `ai/runtime_profiles/default_profiles.yaml` — provider/model/mode por agente.
+- Módulo `runtime_profiles.py` — `load_profiles`, `get_agent_profile`, `validate_profile`, `get_provider_for_agent`.
+- `provider_router.route_agent()` — roteamento por agente via runtime profiles.
+- Pipeline híbrido: steps Gemini (análise/docs) + Cursor (implementação) conforme profile.
+- `pipeline_history` e logs de pipeline com `provider` e `model` por step.
+- GUI: aba **Runtime Profiles** (somente leitura).
+- README: seção Agent Runtime Profiles.
+
+### Changed
+
+- `pipeline_engine`, `cursor_runner`, `pipeline_result` e `task_manager` integrados a runtime profiles.
+- Fallback seguro para Cursor quando profile ausente ou provider não configurado.
+- `CURRENT_SPRINT` atualizado para Sprint 9.
+
 ## [0.9.0] - 2026-05-23
 
 ### Added (Sprint 8 — API Keys Settings + Gemini Provider)

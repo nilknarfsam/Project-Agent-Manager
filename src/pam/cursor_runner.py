@@ -63,6 +63,8 @@ class AgentStepRecord:
     run_path: Path
     result: RunResult
     summary: str
+    provider: str = "cursor"
+    model: str | None = None
 
 
 class CursorRunner:
@@ -95,6 +97,7 @@ class CursorRunner:
         project: ProjectConfig,
         *,
         mode: str = "agent",
+        model: str | None = None,
     ) -> AgentOptions:
         """Monta opções do agente local com modo plan ou agent."""
         api_key = self.ensure_api_key()
@@ -115,10 +118,14 @@ class CursorRunner:
                 f"para {project.name}."
             )
 
+        resolved_mode = mode
+        if resolved_mode == "deep_agent":
+            resolved_mode = "agent"
+
         return AgentOptions(
             api_key=api_key,
-            model=project.default_model,
-            mode=mode,  # type: ignore[arg-type]
+            model=model or project.default_model,
+            mode=resolved_mode,  # type: ignore[arg-type]
             local=LocalAgentOptions(cwd=str(cwd)),
         )
 
@@ -279,6 +286,9 @@ class CursorRunner:
         pipeline_name: str | None = None,
         task_id: str | None = None,
         step_index: int | None = None,
+        mode_override: str | None = None,
+        model_override: str | None = None,
+        provider: str = "cursor",
     ) -> AgentStepRecord:
         """
         Executa um step de pipeline: agente + task + contexto acumulado.
@@ -286,7 +296,7 @@ class CursorRunner:
         Persiste log em ai/runs/pipelines/ e retorna resumo para o próximo step.
         """
         command = self.pipeline_command_for_agent(agent_name)
-        mode = self.mode_for_command(command)
+        mode = mode_override or self.mode_for_command(command)
         prompt = self.build_pipeline_step_prompt(
             agent_name,
             command=command,
@@ -296,7 +306,14 @@ class CursorRunner:
             pipeline_name=pipeline_name,
         )
 
-        result = self.run_prompt(project, prompt, mode=mode, use_session=False)
+        resolved_model = model_override or project.default_model
+        result = self.run_prompt(
+            project,
+            prompt,
+            mode=mode,
+            use_session=False,
+            model=model_override,
+        )
         summary = self.extract_summary(result)
 
         label_parts = ["pipeline"]
@@ -319,6 +336,8 @@ class CursorRunner:
             agent_name=agent_name,
             runs_directory=self.pipelines_dir(),
             file_label=file_label,
+            provider=provider,
+            model=resolved_model,
         )
 
         if str(result.status).lower() == "error":
@@ -335,6 +354,8 @@ class CursorRunner:
             run_path=run_path,
             result=result,
             summary=summary,
+            provider=provider,
+            model=resolved_model,
         )
 
     @staticmethod
@@ -517,6 +538,7 @@ class CursorRunner:
         *,
         mode: str = "agent",
         use_session: bool = False,
+        model: str | None = None,
     ) -> RunResult:
         """
         Envia o prompt ao agente local.
@@ -524,7 +546,7 @@ class CursorRunner:
         Por padrão usa Agent.prompt (create + send + wait).
         Com use_session=True, usa Agent.create + agent.send().wait().
         """
-        options = self.build_agent_options(project, mode=mode)
+        options = self.build_agent_options(project, mode=mode, model=model)
 
         if use_session:
             with Agent.create(options) as agent:
@@ -638,6 +660,8 @@ class CursorRunner:
         agent_name: str | None = None,
         runs_directory: Path | None = None,
         file_label: str | None = None,
+        provider: str = "cursor",
+        model: str | None = None,
     ) -> Path:
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         base_name = f"{timestamp}_{project.name}_{file_label or command}"
@@ -649,7 +673,8 @@ class CursorRunner:
             "command": command,
             "mode": mode,
             "agent_name": agent_name,
-            "model": project.default_model,
+            "provider": provider,
+            "model": model or project.default_model,
             "repo_path": str(project.repo_path),
             "task_path": str(task_path) if task_path else None,
             "status": str(result.status),
@@ -683,6 +708,8 @@ class CursorRunner:
         ]
         if payload.get("agent_name"):
             lines.append(f"- **Agente PAM:** {payload['agent_name']}")
+        if payload.get("provider"):
+            lines.append(f"- **Provider:** {payload['provider']}")
         lines.extend([
             f"- **Modelo:** {payload['model']}",
             f"- **Repositório:** `{payload['repo_path']}`",
