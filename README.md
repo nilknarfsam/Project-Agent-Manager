@@ -43,6 +43,7 @@ Documentação oficial em **português brasileiro** — `docs/`:
 | [Onboarding](docs/onboarding.md) | Integrar projetos ao OS4AI |
 | [FAQ](docs/faq.md) | Perguntas frequentes |
 | [Observabilidade](docs/observability.md) | Métricas, eventos JSONL, privacidade |
+| [Distribuição Portátil](docs/portable_build.md) | Como compilar e rodar portátil (.exe) |
 
 ### Screenshots (em breve)
 
@@ -444,6 +445,15 @@ python -m pam.main metrics --last 10
 Guia completo: [docs/observability.md](docs/observability.md).
 
 **Limitações (Sprint 13):** armazenamento local apenas; sem custos reais de tokens; sem banco de dados.
+
+### Distribuição Portátil (Sprint 14)
+
+O PAM está preparado para distribuição executável/portátil (`pam.exe` no Windows) via PyInstaller, permitindo demonstrações imediatas e uso sem configuração local de Python.
+
+- **Dual-Path Architecture:** recursos de leitura (agents, prompts, templates) são lidos do bundle empacotado (`bundled_root()`), enquanto configurações e estados graváveis (`.env`, `ai/projects/`, runs, sessions e métricas) são persistidos na pasta do executável (`project_root()`).
+- **Sem chaves embutidas:** o executável distribuído nunca contém chaves ou variáveis do desenvolvedor, gerando um `.env` limpo com placeholders no primeiro start.
+
+Guia completo: [docs/portable_build.md](docs/portable_build.md).
 
 ## Estrutura
 

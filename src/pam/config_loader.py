@@ -11,8 +11,19 @@ from pam.models import ProjectConfig
 PROJECTS_DIR_NAME = "ai/projects"
 
 
+import sys
+
 def project_root() -> Path:
-    """Retorna a raiz do repositório PAM (dois níveis acima de src/pam)."""
+    """Retorna o diretório writable do projeto/instalação (pasta do executável se congelado)."""
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).parent.resolve()
+    return Path(__file__).resolve().parents[2]
+
+
+def bundled_root() -> Path:
+    """Retorna a raiz dos recursos empacotados (sys._MEIPASS se congelado)."""
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        return Path(sys._MEIPASS)
     return Path(__file__).resolve().parents[2]
 
 

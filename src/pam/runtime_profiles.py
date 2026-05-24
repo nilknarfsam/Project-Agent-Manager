@@ -8,7 +8,7 @@ from typing import Any
 
 import yaml
 
-from pam.config_loader import project_root
+from pam.config_loader import bundled_root, project_root
 from pam.settings_manager import SettingsManager
 
 RUNTIME_PROFILES_DIR = "ai/runtime_profiles"
@@ -45,7 +45,7 @@ class AgentRuntimeProfile:
 
 
 def profiles_path(base_dir: Path | None = None) -> Path:
-    root = base_dir or project_root()
+    root = base_dir or bundled_root()
     return root / RUNTIME_PROFILES_DIR / DEFAULT_PROFILES_FILE
 
 

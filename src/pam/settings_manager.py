@@ -9,7 +9,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from pam.config_loader import project_root
+from pam.config_loader import bundled_root, project_root
 
 PROVIDER_ENV_VARS: dict[str, str] = {
     "cursor": "CURSOR_API_KEY",
@@ -66,7 +66,7 @@ class SettingsManager:
     def __init__(self, base_dir: Path | None = None) -> None:
         self.base_dir = base_dir or project_root()
         self.env_path = self.base_dir / ".env"
-        self.example_path = self.base_dir / ".env.example"
+        self.example_path = bundled_root() / ".env.example"
 
     @classmethod
     def validate_provider(cls, provider: str) -> str:

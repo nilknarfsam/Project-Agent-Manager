@@ -439,6 +439,7 @@ class PamGuiApp:
             self._context_all_files = []
             return
 
+        self._context_builder.base_dir = repo
         try:
             tree_root = self._context_builder.build_file_tree(repo)
             self._context_all_files = self._context_builder.list_project_files(repo)

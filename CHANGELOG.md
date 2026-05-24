@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-beta.5] - 2026-05-24
+
+### Added (Sprint 14 — Portable Build Foundation)
+
+- Módulo `bundled_root()` em `config_loader.py` — suporte a caminhos em executável congelado via PyInstaller (`sys._MEIPASS`).
+- Arquitetura Dual-Path — separação de leitura estática/empacotada (`bundled_root()`) e escrita mutável de usuário (`project_root()`).
+- Atualização em `agent_registry`, `cursor_runner`, `pipeline_engine`, `runtime_profiles`, `settings_manager` e `project_bootstrap` para ler assets do bundle.
+- Configuração dinâmica de `base_dir` do `ContextBuilder` na GUI do Workbench para salvar md gerado localmente na pasta do projeto.
+- Script automatizado de build `scripts/build_executable.py` para gerar o `.exe` portátil com PyInstaller.
+- Documentação: `docs/portable_build.md` com arquitetura Dual-Path e guia portátil.
+
 ## [1.0.0-beta.4] - 2026-05-23
 
 ### Added (Sprint 13 — Observability & Metrics Foundation)

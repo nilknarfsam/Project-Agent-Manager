@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from pam.config_loader import project_root
+from pam.config_loader import bundled_root
 
 AGENTS_DIR = "ai/agents"
 
@@ -24,7 +24,7 @@ class AgentRegistry:
     """Lista, valida e carrega definições de agentes em Markdown."""
 
     def __init__(self, base_dir: Path | None = None) -> None:
-        self.base_dir = base_dir or project_root()
+        self.base_dir = base_dir or bundled_root()
 
     def agents_dir(self) -> Path:
         return self.base_dir / AGENTS_DIR

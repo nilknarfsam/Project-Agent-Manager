@@ -13,7 +13,7 @@ from typing import Any
 import yaml
 
 from pam.agent_registry import AgentRegistry
-from pam.config_loader import project_root
+from pam.config_loader import bundled_root, project_root
 from pam.cursor_runner import AgentStepRecord, CursorRunner
 from pam.models import ProjectConfig
 from pam.pipeline_result import PipelineResult, PipelineStepResult
@@ -60,7 +60,7 @@ class PipelineEngine:
         self.provider_router = ProviderRouter()
 
     def pipelines_dir(self) -> Path:
-        return self.base_dir / PIPELINES_DIR
+        return bundled_root() / PIPELINES_DIR
 
     def pipeline_runs_dir(self) -> Path:
         directory = self.base_dir / PIPELINE_RUNS_DIR

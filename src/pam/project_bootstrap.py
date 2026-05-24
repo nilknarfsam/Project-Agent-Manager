@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
 
-from pam.config_loader import list_projects, load_project, project_root, projects_dir
+from pam.config_loader import list_projects, load_project, project_root, projects_dir, bundled_root
 from pam.template_engine import TemplateEngine, TemplateEngineError
 
 STACK_LABELS: dict[str, str] = {
@@ -87,15 +87,15 @@ class ProjectBootstrap:
         pam_root: Path | None = None,
         templates: TemplateEngine | None = None,
     ) -> None:
-        self.pam_root = pam_root or project_root()
+        self.pam_root = pam_root or bundled_root()
         self.templates = templates or TemplateEngine()
         self._pam_ai = self.pam_root / "ai"
 
     def default_projects_base(self) -> Path:
         """Inferir diretório pai dos projetos (ex.: C:\\src\\projects)."""
-        for name in list_projects(self.pam_root):
+        for name in list_projects(project_root()):
             try:
-                cfg = load_project(name, self.pam_root)
+                cfg = load_project(name, project_root())
                 return cfg.repo_path.parent
             except (FileNotFoundError, ValueError):
                 continue
@@ -250,8 +250,8 @@ class ProjectBootstrap:
         force: bool = False,
         result: BootstrapResult,
     ) -> None:
-        yaml_path = projects_dir(self.pam_root) / f"{project_slug}.yaml"
-        projects_dir(self.pam_root).mkdir(parents=True, exist_ok=True)
+        yaml_path = projects_dir(project_root()) / f"{project_slug}.yaml"
+        projects_dir(project_root()).mkdir(parents=True, exist_ok=True)
 
         if yaml_path.exists() and not force:
             result.skipped.append(

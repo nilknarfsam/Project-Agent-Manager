@@ -11,7 +11,7 @@ from pathlib import Path
 from cursor_sdk import Agent, AgentOptions, LocalAgentOptions, RunResult
 
 from pam.agent_registry import AgentRegistry
-from pam.config_loader import project_root
+from pam.config_loader import bundled_root, project_root
 from pam.context_engine import ContextEngine
 from pam.models import ProjectConfig
 from pam.session_store import SessionMetadata, SessionStore
@@ -132,7 +132,7 @@ class CursorRunner:
 
     @staticmethod
     def prompts_dir() -> Path:
-        return project_root() / PROMPTS_DIR
+        return bundled_root() / PROMPTS_DIR
 
     @staticmethod
     def runs_dir() -> Path:
