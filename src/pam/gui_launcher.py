@@ -15,6 +15,7 @@ from tkinter import filedialog, messagebox, scrolledtext, ttk
 from dotenv import load_dotenv
 
 from pam.agent_registry import AgentRegistry
+from pam.context_builder import ContextBuilder, ContextBuilderError, FileTreeNode
 from pam.config_loader import list_projects, load_project
 from pam.runtime_profiles import list_resolved_profiles
 from pam.settings_manager import SettingsManager, SettingsManagerError
@@ -95,6 +96,9 @@ class PamGuiApp:
 
         self._settings = SettingsManager()
         self._task_manager = TaskManager()
+        self._context_builder = ContextBuilder()
+        self._context_selected_files: set[str] = set()
+        self._context_all_files: list[str] = []
         self._log_queue: queue.Queue[tuple[str, object]] = queue.Queue()
         self._running = False
         self._provider_status_labels: dict[str, ttk.Label] = {}
@@ -201,21 +205,26 @@ class PamGuiApp:
 
         self.tab_ops = ttk.Frame(notebook, padding=PAD)
         self.tab_tasks = ttk.Frame(notebook, padding=PAD)
+        self.tab_context = ttk.Frame(notebook, padding=PAD)
         self.tab_profiles = ttk.Frame(notebook, padding=PAD)
         self.tab_settings = ttk.Frame(notebook, padding=PAD)
         self.tab_logs = ttk.Frame(notebook, padding=PAD)
 
         notebook.add(self.tab_ops, text="Operações")
         notebook.add(self.tab_tasks, text="Tasks")
+        notebook.add(self.tab_context, text="Context Builder")
         notebook.add(self.tab_profiles, text="Runtime Profiles")
         notebook.add(self.tab_settings, text="Configurações")
         notebook.add(self.tab_logs, text="Logs")
 
         self._build_ops_tab()
         self._build_tasks_tab()
+        self._build_context_tab()
         self._build_profiles_tab()
         self._build_settings_tab()
         self._build_logs_tab()
+
+        self.notebook = notebook
 
         notebook.pack(fill=tk.BOTH, expand=True)
         return notebook
@@ -330,6 +339,268 @@ class PamGuiApp:
             text="Atualizar tasks",
             command=self.refresh_tasks,
         ).pack(anchor=tk.W, pady=(PAD, 0))
+
+    def _build_context_tab(self) -> None:
+        frame = ttk.Frame(self.tab_context)
+        frame.pack(fill=tk.BOTH, expand=True)
+
+        ttk.Label(
+            frame,
+            text=(
+                "Selecione arquivos do repositório do projeto para montar um pacote "
+                "de contexto. Arquivos gerados são salvos em ai/context/generated/."
+            ),
+            wraplength=680,
+        ).pack(anchor=tk.W, pady=(0, PAD))
+
+        paned = ttk.PanedWindow(frame, orient=tk.HORIZONTAL)
+        paned.pack(fill=tk.BOTH, expand=True)
+
+        left = ttk.LabelFrame(paned, text="Arquivos do projeto", padding=PAD)
+        right = ttk.LabelFrame(paned, text="Contexto montado", padding=PAD)
+        paned.add(left, weight=1)
+        paned.add(right, weight=2)
+
+        tree_frame = ttk.Frame(left)
+        tree_frame.pack(fill=tk.BOTH, expand=True)
+
+        self.context_files_tree = ttk.Treeview(
+            tree_frame,
+            columns=("type",),
+            show="tree headings",
+            height=16,
+        )
+        self.context_files_tree.heading("#0", text="Caminho")
+        self.context_files_tree.heading("type", text="Tipo")
+        self.context_files_tree.column("#0", width=260)
+        self.context_files_tree.column("type", width=60, stretch=False)
+
+        tree_scroll = ttk.Scrollbar(
+            tree_frame, orient=tk.VERTICAL, command=self.context_files_tree.yview
+        )
+        self.context_files_tree.configure(yscrollcommand=tree_scroll.set)
+        self.context_files_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        tree_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+
+        tree_btns = ttk.Frame(left)
+        tree_btns.pack(fill=tk.X, pady=(PAD, 0))
+        ttk.Button(
+            tree_btns, text="Atualizar árvore", command=self.refresh_context_file_tree
+        ).pack(side=tk.LEFT, padx=(0, PAD))
+        ttk.Button(
+            tree_btns,
+            text="Adicionar selecionado",
+            command=self._context_add_selected,
+        ).pack(side=tk.LEFT, padx=(0, PAD))
+        ttk.Button(
+            tree_btns, text="Limpar contexto", command=self._context_clear_selection
+        ).pack(side=tk.LEFT)
+
+        self.context_selected_label = ttk.Label(
+            left, text="Selecionados: 0 arquivo(s)", wraplength=280
+        )
+        self.context_selected_label.pack(anchor=tk.W, pady=(PAD, 0))
+
+        self.context_preview = scrolledtext.ScrolledText(
+            right,
+            height=18,
+            wrap=tk.WORD,
+            font=FONT_MONO,
+        )
+        self.context_preview.pack(fill=tk.BOTH, expand=True)
+
+        ctx_btns = ttk.Frame(right)
+        ctx_btns.pack(fill=tk.X, pady=(PAD, 0))
+        ttk.Button(
+            ctx_btns,
+            text="Salvar contexto gerado",
+            command=self._context_save_generated,
+        ).pack(side=tk.LEFT, padx=(0, PAD))
+        ttk.Button(
+            ctx_btns,
+            text="Usar no próximo prompt",
+            command=self._context_use_in_prompt,
+        ).pack(side=tk.LEFT)
+
+        self._context_clear_selection(show_message=False)
+
+    def refresh_context_file_tree(self) -> None:
+        """Recarrega árvore de arquivos do repositório selecionado."""
+        for item in self.context_files_tree.get_children():
+            self._context_remove_tree_branch(item)
+
+        repo = self._selected_project_path()
+        if repo is None:
+            self._context_all_files = []
+            return
+
+        try:
+            tree_root = self._context_builder.build_file_tree(repo)
+            self._context_all_files = self._context_builder.list_project_files(repo)
+        except ContextBuilderError as exc:
+            messagebox.showerror("PAM", str(exc))
+            return
+
+        self._context_insert_tree_node("", tree_root)
+
+    @classmethod
+    def _context_remove_tree_branch(cls, tree: ttk.Treeview, item: str) -> None:
+        for child in tree.get_children(item):
+            cls._context_remove_tree_branch(tree, child)
+        tree.delete(item)
+
+    def _context_remove_tree_branch(self, item: str) -> None:
+        PamGuiApp._context_remove_tree_branch(self.context_files_tree, item)
+
+    def _context_insert_tree_node(
+        self,
+        parent_iid: str,
+        node: FileTreeNode,
+    ) -> None:
+        for child in node.children:
+            iid = child.rel_path or f"__root__/{child.name}"
+            type_label = "pasta" if child.is_dir else "arquivo"
+            self.context_files_tree.insert(
+                parent_iid,
+                tk.END,
+                iid=iid,
+                text=child.name,
+                values=(type_label,),
+            )
+            if child.is_dir and child.children:
+                self._context_insert_tree_node(iid, child)
+
+    def _context_update_selected_label(self) -> None:
+        count = len(self._context_selected_files)
+        self.context_selected_label.configure(
+            text=f"Selecionados: {count} arquivo(s)"
+        )
+
+    def _context_refresh_preview(self) -> None:
+        self.context_preview.configure(state=tk.NORMAL)
+        self.context_preview.delete("1.0", tk.END)
+
+        project = self.project_var.get().strip()
+        repo = self._selected_project_path()
+        if not project or repo is None or not self._context_selected_files:
+            self.context_preview.insert(
+                tk.END, "(nenhum arquivo selecionado — use Adicionar selecionado)"
+            )
+            self.context_preview.configure(state=tk.DISABLED)
+            return
+
+        try:
+            markdown = self._context_builder.build_context_markdown(
+                project,
+                repo,
+                sorted(self._context_selected_files),
+            )
+        except ContextBuilderError as exc:
+            self.context_preview.insert(tk.END, f"Erro: {exc}")
+            self.context_preview.configure(state=tk.DISABLED)
+            return
+
+        self.context_preview.insert(tk.END, markdown)
+        self.context_preview.configure(state=tk.DISABLED)
+
+    def _context_clear_selection(self, *, show_message: bool = True) -> None:
+        self._context_selected_files.clear()
+        self._context_update_selected_label()
+        self._context_refresh_preview()
+        if show_message:
+            self._log("Context Builder: seleção limpa.\n")
+
+    def _context_add_selected(self) -> None:
+        repo = self._selected_project_path()
+        if repo is None:
+            messagebox.showerror(
+                "PAM",
+                "Selecione um projeto com repositório válido na barra lateral.",
+            )
+            return
+
+        selected = self.context_files_tree.selection()
+        if not selected:
+            messagebox.showwarning("PAM", "Selecione um arquivo ou pasta na árvore.")
+            return
+
+        if not self._context_all_files:
+            self.refresh_context_file_tree()
+
+        added = 0
+        for iid in selected:
+            rel = "" if iid.startswith("__root__/") else iid
+            if not rel:
+                continue
+
+            values = self.context_files_tree.item(iid, "values")
+            is_dir = values and values[0] == "pasta"
+            if is_dir:
+                paths = self._context_builder.collect_files_under(
+                    repo, rel, all_files=self._context_all_files
+                )
+            else:
+                paths = [rel] if rel in self._context_all_files else []
+
+            for path in paths:
+                if path not in self._context_selected_files:
+                    self._context_selected_files.add(path)
+                    added += 1
+
+        if added == 0:
+            messagebox.showinfo("PAM", "Nenhum arquivo novo adicionado ao contexto.")
+            return
+
+        self._context_update_selected_label()
+        self._context_refresh_preview()
+        self._log(f"Context Builder: {added} arquivo(s) adicionado(s).\n")
+
+    def _context_current_markdown(self) -> str:
+        project = self.project_var.get().strip()
+        repo = self._selected_project_path()
+        if not project or repo is None:
+            raise ContextBuilderError("Selecione um projeto válido.")
+        return self._context_builder.build_context_markdown(
+            project,
+            repo,
+            sorted(self._context_selected_files),
+        )
+
+    def _context_save_generated(self) -> None:
+        try:
+            markdown = self._context_current_markdown()
+            project = self.project_var.get().strip()
+            path = self._context_builder.save_context(
+                markdown, project_name=project
+            )
+        except ContextBuilderError as exc:
+            messagebox.showerror("PAM", str(exc))
+            return
+
+        self._log(f"Context Builder: contexto salvo em {path}\n")
+        messagebox.showinfo("PAM", f"Contexto salvo em:\n{path}")
+
+    def _context_use_in_prompt(self) -> None:
+        try:
+            markdown = self._context_current_markdown()
+        except ContextBuilderError as exc:
+            messagebox.showerror("PAM", str(exc))
+            return
+
+        existing = self.prompt_text.get("1.0", tk.END).strip()
+        if existing:
+            combined = existing + "\n\n---\n\n" + markdown
+        else:
+            combined = markdown
+
+        self.prompt_text.delete("1.0", tk.END)
+        self.prompt_text.insert("1.0", combined)
+        self.notebook.select(self.tab_ops)
+        self._log("Context Builder: contexto copiado para prompt extra.\n")
+        messagebox.showinfo(
+            "PAM",
+            "Contexto adicionado ao prompt extra na aba Operações.",
+        )
 
     def _build_settings_tab(self) -> None:
         frame = ttk.LabelFrame(
@@ -634,6 +905,7 @@ class PamGuiApp:
             cfg = load_project(name)
             self.repo_label.configure(text=f"Repositório:\n{cfg.repo_path}")
             self.folder_var.set(str(cfg.repo_path))
+            self.refresh_context_file_tree()
         except (FileNotFoundError, ValueError) as exc:
             self.repo_label.configure(text=f"Repositório: erro — {exc}")
 

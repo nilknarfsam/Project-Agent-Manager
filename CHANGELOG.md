@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-beta.2] - 2026-05-23
+
+### Added (Sprint 11 — Context Builder Panel)
+
+- Módulo `context_builder.py` — listagem de arquivos, filtros de pastas pesadas, markdown consolidado.
+- Aba **Context Builder** na GUI: árvore, seleção, preview, salvar e usar no prompt.
+- Contextos salvos em `ai/context/generated/context_YYYYMMDD_HHMMSS.md`.
+- README: seção Context Builder.
+
+### Changed
+
+- `CURRENT_SPRINT` atualizado para Sprint 11.
+
 ## [1.0.0-beta.1] - 2026-05-23
 
 ### Added (Sprint 10 — Agentic Workbench UI foundation)

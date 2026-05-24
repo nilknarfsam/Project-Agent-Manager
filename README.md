@@ -204,6 +204,7 @@ python -m pam.main gui
 | **Barra lateral** | Lista de projetos, Atualizar, Abrir pasta, onboard, Abrir no Cursor / VS Code |
 | **Operações** | Comando, agente, task, prompt extra, Executar |
 | **Tasks** | Tarefas do lifecycle (`ai/tasks/`) do projeto selecionado |
+| **Context Builder** | Árvore de arquivos, montagem e salvamento de pacote de contexto |
 | **Runtime Profiles** | Provider/model por agente (somente leitura) |
 | **Configurações** | Chaves de API (.env) |
 | **Logs** | Controles da saída em tempo real |
@@ -219,6 +220,22 @@ code <caminho_do_projeto>
 Se o comando não estiver no PATH, a GUI exibe erro amigável com instruções.
 
 Comandos delegados aos mesmos handlers da CLI: `plan`, `run`, `review`, `resume`, onboard.
+
+### Context Builder
+
+Monte pacotes de contexto a partir de arquivos do repositório do projeto — aba **Context Builder** na GUI.
+
+| Recurso | Descrição |
+|---------|-----------|
+| Árvore de arquivos | Lista o repo ignorando `.git`, `.venv`, `node_modules`, `build`, etc. |
+| Seleção | Adicionar arquivo ou pasta inteira ao pacote |
+| Limite | Contexto truncado em ~120k caracteres |
+| Salvar | `ai/context/generated/context_YYYYMMDD_HHMMSS.md` |
+| Usar no prompt | Copia o markdown para o prompt extra (aba Operações) |
+
+Formato: cabeçalho `# Generated Context`, projeto, lista de arquivos incluídos e seções `## caminho/arquivo` com conteúdo em bloco `text`.
+
+Lógica em `context_builder.py` — complementa `context_engine` (contexto PAM global/memória), sem duplicá-lo.
 
 Requisito: Python com Tkinter (incluído na instalação padrão do Windows).
 
@@ -365,7 +382,7 @@ python -m pam.main clear-session auratime
 project_agent_manager/
 ├── protocol/          # OS4AI — especificação reutilizável (Sprint 5.5)
 ├── ai/
-│   ├── context/       # contexto global PAM
+│   ├── context/       # contexto global PAM (+ generated/)
 │   ├── memory/        # memória por projeto
 │   ├── sessions/      # metadata de sessões agenticas
 │   ├── projects/      # YAML por projeto
@@ -380,6 +397,7 @@ project_agent_manager/
 │   ├── config_loader.py
 │   ├── cursor_runner.py
 │   ├── context_engine.py
+│   ├── context_builder.py
 │   ├── session_store.py
 │   ├── agent_registry.py
 │   ├── task_manager.py
