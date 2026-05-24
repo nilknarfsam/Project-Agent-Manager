@@ -1,0 +1,353 @@
+"""Desktop Launcher — interface Tkinter para o PAM (complementa a CLI)."""
+
+from __future__ import annotations
+
+import argparse
+import queue
+import sys
+import threading
+import tkinter as tk
+from pathlib import Path
+from tkinter import filedialog, messagebox, scrolledtext, ttk
+
+from dotenv import load_dotenv
+
+from pam.agent_registry import AgentRegistry
+from pam.config_loader import list_projects, load_project
+
+
+class PamGuiApp:
+    """Launcher desktop que delega execução aos handlers da CLI."""
+
+    COMMANDS = ("plan", "run", "review", "resume")
+
+    def __init__(self, root: tk.Tk) -> None:
+        self.root = root
+        self.root.title("Project Agent Manager — Desktop Launcher")
+        self.root.minsize(720, 560)
+
+        self._log_queue: queue.Queue[tuple[str, object]] = queue.Queue()
+        self._running = False
+
+        self.project_var = tk.StringVar()
+        self.folder_var = tk.StringVar()
+        self.command_var = tk.StringVar(value="plan")
+        self.agent_var = tk.StringVar(value="")
+        self.task_var = tk.StringVar()
+        self.prompt_var = tk.StringVar()
+        self.force_onboard_var = tk.BooleanVar(value=False)
+
+        self._build_ui()
+        self.refresh_projects()
+        self._poll_log_queue()
+
+    def _build_ui(self) -> None:
+        pad = {"padx": 8, "pady": 4}
+        main = ttk.Frame(self.root, padding=8)
+        main.pack(fill=tk.BOTH, expand=True)
+
+        # --- Projeto cadastrado ---
+        proj_frame = ttk.LabelFrame(main, text="Projeto cadastrado (PAM)", padding=8)
+        proj_frame.pack(fill=tk.X, **pad)
+
+        row = ttk.Frame(proj_frame)
+        row.pack(fill=tk.X)
+        ttk.Label(row, text="Projeto:").pack(side=tk.LEFT)
+        self.project_combo = ttk.Combobox(
+            row, textvariable=self.project_var, state="readonly", width=40
+        )
+        self.project_combo.pack(side=tk.LEFT, padx=(6, 6), fill=tk.X, expand=True)
+        self.project_combo.bind("<<ComboboxSelected>>", self._on_project_selected)
+        ttk.Button(row, text="Atualizar", command=self.refresh_projects).pack(
+            side=tk.LEFT
+        )
+
+        self.repo_label = ttk.Label(proj_frame, text="Repositório: —", wraplength=680)
+        self.repo_label.pack(anchor=tk.W, pady=(4, 0))
+
+        # --- Pasta (onboard) ---
+        folder_frame = ttk.LabelFrame(main, text="Pasta do repositório", padding=8)
+        folder_frame.pack(fill=tk.X, **pad)
+
+        frow = ttk.Frame(folder_frame)
+        frow.pack(fill=tk.X)
+        ttk.Entry(frow, textvariable=self.folder_var).pack(
+            side=tk.LEFT, fill=tk.X, expand=True
+        )
+        ttk.Button(frow, text="Selecionar pasta…", command=self._browse_folder).pack(
+            side=tk.LEFT, padx=(6, 0)
+        )
+
+        onboard_row = ttk.Frame(folder_frame)
+        onboard_row.pack(fill=tk.X, pady=(6, 0))
+        ttk.Checkbutton(
+            onboard_row, text="--force (sobrescrever templates)", variable=self.force_onboard_var
+        ).pack(side=tk.LEFT)
+        ttk.Button(onboard_row, text="Executar onboard", command=self._run_onboard).pack(
+            side=tk.RIGHT
+        )
+
+        # --- Comando agentico ---
+        cmd_frame = ttk.LabelFrame(main, text="Comando agentico", padding=8)
+        cmd_frame.pack(fill=tk.X, **pad)
+
+        crow = ttk.Frame(cmd_frame)
+        crow.pack(fill=tk.X)
+        ttk.Label(crow, text="Comando:").grid(row=0, column=0, sticky=tk.W)
+        cmd_box = ttk.Combobox(
+            crow,
+            textvariable=self.command_var,
+            values=self.COMMANDS,
+            state="readonly",
+            width=12,
+        )
+        cmd_box.grid(row=0, column=1, sticky=tk.W, padx=(6, 16))
+        cmd_box.bind("<<ComboboxSelected>>", self._on_command_changed)
+
+        ttk.Label(crow, text="Agente:").grid(row=0, column=2, sticky=tk.W)
+        self.agent_combo = ttk.Combobox(
+            crow, textvariable=self.agent_var, width=18, state="readonly"
+        )
+        self.agent_combo.grid(row=0, column=3, sticky=tk.W, padx=(6, 0))
+
+        trow = ttk.Frame(cmd_frame)
+        trow.pack(fill=tk.X, pady=(6, 0))
+        ttk.Label(trow, text="Task:").pack(side=tk.LEFT)
+        ttk.Entry(trow, textvariable=self.task_var).pack(
+            side=tk.LEFT, fill=tk.X, expand=True, padx=(6, 6)
+        )
+        ttk.Button(trow, text="Arquivo…", command=self._browse_task).pack(side=tk.LEFT)
+
+        ttk.Label(cmd_frame, text="Prompt extra (-p):").pack(anchor=tk.W, pady=(6, 0))
+        ttk.Entry(cmd_frame, textvariable=self.prompt_var).pack(fill=tk.X)
+
+        action_row = ttk.Frame(cmd_frame)
+        action_row.pack(fill=tk.X, pady=(8, 0))
+        self.run_btn = ttk.Button(
+            action_row, text="Executar comando", command=self._run_command
+        )
+        self.run_btn.pack(side=tk.LEFT)
+        ttk.Button(action_row, text="Limpar log", command=self._clear_log).pack(
+            side=tk.LEFT, padx=(8, 0)
+        )
+
+        # --- Log ---
+        log_frame = ttk.LabelFrame(main, text="Saída / log", padding=8)
+        log_frame.pack(fill=tk.BOTH, expand=True, **pad)
+
+        self.log_text = scrolledtext.ScrolledText(
+            log_frame, height=16, state=tk.DISABLED, wrap=tk.WORD, font=("Consolas", 10)
+        )
+        self.log_text.pack(fill=tk.BOTH, expand=True)
+
+        self._refresh_agents()
+        self._on_command_changed()
+
+    def _append_log(self, text: str, *, tag: str | None = None) -> None:
+        self.log_text.configure(state=tk.NORMAL)
+        if tag:
+            self.log_text.insert(tk.END, text, tag)
+        else:
+            self.log_text.insert(tk.END, text)
+        self.log_text.see(tk.END)
+        self.log_text.configure(state=tk.DISABLED)
+
+    def _clear_log(self) -> None:
+        self.log_text.configure(state=tk.NORMAL)
+        self.log_text.delete("1.0", tk.END)
+        self.log_text.configure(state=tk.DISABLED)
+
+    def _log(self, message: str) -> None:
+        self._append_log(message if message.endswith("\n") else message + "\n")
+
+    def _refresh_agents(self) -> None:
+        agents = [""] + AgentRegistry().list_agents()
+        self.agent_combo["values"] = agents
+        if self.agent_var.get() not in agents:
+            self.agent_var.set("")
+
+    def refresh_projects(self) -> None:
+        projects = list_projects()
+        self.project_combo["values"] = projects
+        if projects:
+            current = self.project_var.get()
+            if current not in projects:
+                self.project_var.set(projects[0])
+            self._on_project_selected()
+        else:
+            self.project_var.set("")
+            self.repo_label.configure(text="Repositório: (nenhum projeto cadastrado)")
+
+        lines = ["Projetos cadastrados:"]
+        if projects:
+            for name in projects:
+                try:
+                    cfg = load_project(name)
+                    lines.append(f"  - {name}: {cfg.repo_path}")
+                except (FileNotFoundError, ValueError) as exc:
+                    lines.append(f"  - {name}: (erro ao carregar — {exc})")
+        else:
+            lines.append("  (nenhum)")
+        self._log("\n".join(lines) + "\n")
+
+    def _on_project_selected(self, _event: object | None = None) -> None:
+        name = self.project_var.get()
+        if not name:
+            return
+        try:
+            cfg = load_project(name)
+            self.repo_label.configure(text=f"Repositório: {cfg.repo_path}")
+            self.folder_var.set(str(cfg.repo_path))
+        except (FileNotFoundError, ValueError) as exc:
+            self.repo_label.configure(text=f"Repositório: erro — {exc}")
+
+    def _on_command_changed(self, _event: object | None = None) -> None:
+        self.agent_combo.configure(state="readonly")
+
+    def _browse_folder(self) -> None:
+        path = filedialog.askdirectory(title="Selecionar pasta do projeto")
+        if path:
+            self.folder_var.set(path)
+
+    def _browse_task(self) -> None:
+        path = filedialog.askopenfilename(
+            title="Selecionar arquivo de task",
+            filetypes=[("Markdown", "*.md"), ("Todos", "*.*")],
+        )
+        if path:
+            self.task_var.set(path)
+
+    def _set_busy(self, busy: bool) -> None:
+        self._running = busy
+        state = tk.DISABLED if busy else tk.NORMAL
+        self.run_btn.configure(state=state)
+
+    def _run_in_thread(self, label: str, func) -> None:
+        if self._running:
+            messagebox.showwarning("PAM", "Aguarde a operação em andamento.")
+            return
+
+        self._set_busy(True)
+        self._log(f"\n--- {label} ---\n")
+
+        def worker() -> None:
+            stdout = sys.stdout
+            stderr = sys.stderr
+
+            class _Writer:
+                def __init__(self, stream_name: str) -> None:
+                    self.stream_name = stream_name
+
+                def write(self, data: str) -> None:
+                    if data:
+                        self._log_queue.put(("log", data))
+
+                def flush(self) -> None:
+                    pass
+
+            try:
+                sys.stdout = _Writer("out")
+                sys.stderr = _Writer("err")
+                exit_code = func()
+            except Exception as exc:  # noqa: BLE001 — exibir no log da GUI
+                self._log_queue.put(("log", f"Erro inesperado: {exc}\n"))
+                exit_code = 1
+            finally:
+                sys.stdout = stdout
+                sys.stderr = stderr
+                self._log_queue.put(("done", exit_code))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _poll_log_queue(self) -> None:
+        while True:
+            try:
+                kind, payload = self._log_queue.get_nowait()
+            except queue.Empty:
+                break
+            if kind == "log":
+                self._append_log(str(payload))
+            elif kind == "done":
+                code = int(payload)
+                self._set_busy(False)
+                self._log(f"--- concluído (código {code}) ---\n")
+                if code != 0:
+                    self.root.bell()
+            elif kind == "refresh":
+                self.refresh_projects()
+        self.root.after(100, self._poll_log_queue)
+
+    def _run_onboard(self) -> None:
+        from pam.main import cmd_onboard
+
+        folder = self.folder_var.get().strip()
+        if not folder:
+            messagebox.showerror("PAM", "Selecione uma pasta para onboard.")
+            return
+        if not Path(folder).is_dir():
+            messagebox.showerror("PAM", f"Pasta inválida: {folder}")
+            return
+
+        args = argparse.Namespace(
+            path=folder,
+            project_name=None,
+            force=self.force_onboard_var.get(),
+        )
+
+        def run() -> int:
+            code = cmd_onboard(args)
+            if code == 0:
+                self._log_queue.put(("refresh", None))
+            return code
+
+        self._run_in_thread("onboard", run)
+
+    def _run_command(self) -> None:
+        from pam.main import cmd_plan, cmd_resume, cmd_review, cmd_run
+
+        project = self.project_var.get().strip()
+        if not project:
+            messagebox.showerror(
+                "PAM",
+                "Selecione um projeto cadastrado.\n"
+                "Use onboard primeiro ou cadastre em ai/projects/.",
+            )
+            return
+
+        command = self.command_var.get()
+        handlers = {
+            "plan": cmd_plan,
+            "run": cmd_run,
+            "review": cmd_review,
+            "resume": cmd_resume,
+        }
+        handler = handlers[command]
+
+        agent = self.agent_var.get().strip() or None
+        task = self.task_var.get().strip() or None
+        prompt = self.prompt_var.get().strip() or None
+
+        args = argparse.Namespace(
+            project=project,
+            task=task,
+            prompt=prompt,
+            agent=agent,
+        )
+
+        self._run_in_thread(command, lambda: handler(args))
+
+
+def start_gui() -> None:
+    """Abre a janela principal do Desktop Launcher."""
+    load_dotenv()
+    root = tk.Tk()
+    try:
+        ttk.Style().theme_use("vista")
+    except tk.TclError:
+        pass
+    PamGuiApp(root)
+    root.mainloop()
+
+
+if __name__ == "__main__":
+    start_gui()

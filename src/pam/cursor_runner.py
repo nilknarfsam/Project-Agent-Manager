@@ -32,6 +32,16 @@ COMMAND_MODES = {
     "review": "agent",
 }
 
+PIPELINE_AGENT_COMMANDS: dict[str, str] = {
+    "architect": "plan",
+    "implementer": "run",
+    "reviewer": "review",
+}
+
+DEFAULT_PIPELINE_COMMAND = "run"
+PIPELINE_RUNS_SUBDIR = "ai/runs/pipelines"
+SUMMARY_MAX_CHARS = 2_000
+
 
 @dataclass(frozen=True)
 class RunRecord:
@@ -39,6 +49,19 @@ class RunRecord:
 
     run_path: Path
     result: RunResult
+
+
+@dataclass(frozen=True)
+class AgentStepRecord:
+    """Resultado de um step individual em pipeline multi-agente."""
+
+    agent_name: str
+    command: str
+    mode: str
+    prompt: str
+    run_path: Path
+    result: RunResult
+    summary: str
 
 
 class CursorRunner:
@@ -105,6 +128,16 @@ class CursorRunner:
         directory = project_root() / RUNS_DIR
         directory.mkdir(parents=True, exist_ok=True)
         return directory
+
+    @staticmethod
+    def pipelines_dir() -> Path:
+        directory = project_root() / PIPELINE_RUNS_SUBDIR
+        directory.mkdir(parents=True, exist_ok=True)
+        return directory
+
+    @classmethod
+    def pipeline_command_for_agent(cls, agent_name: str) -> str:
+        return PIPELINE_AGENT_COMMANDS.get(agent_name, DEFAULT_PIPELINE_COMMAND)
 
     @classmethod
     def load_prompt_template(cls, command: str) -> str:
@@ -176,6 +209,130 @@ class CursorRunner:
             )
 
         return "\n\n---\n\n".join(sections)
+
+    def build_pipeline_step_prompt(
+        self,
+        agent_name: str,
+        *,
+        command: str,
+        task_path: Path | None = None,
+        previous_context: str | None = None,
+        project: str | None = None,
+        pipeline_name: str | None = None,
+    ) -> str:
+        """Monta prompt para um step de pipeline com contexto acumulado."""
+        self.agent_registry.validate(agent_name)
+        sections: list[str] = []
+
+        if project:
+            context_block = self.context_engine.build_context_block(project)
+            if context_block:
+                sections.append(context_block)
+
+        agent_body = self.agent_registry.load(agent_name)
+        sections.append(
+            f"## Agente especializado: {agent_name}\n\n{agent_body}"
+        )
+
+        sections.append(self.load_prompt_template(command))
+
+        pipeline_label = pipeline_name or "pipeline"
+        sections.append(
+            "## Pipeline step\n\n"
+            f"Você é o agente `{agent_name}` no pipeline sequencial "
+            f"`{pipeline_label}`. "
+            "Considere o contexto acumulado dos steps anteriores ao agir."
+        )
+
+        if previous_context:
+            sections.append(
+                "## Contexto acumulado do pipeline\n\n"
+                f"{previous_context.strip()}"
+            )
+
+        if task_path:
+            task_body = task_path.read_text(encoding="utf-8").strip()
+            sections.append(f"## Tarefa\n\n{task_body}")
+
+        return "\n\n---\n\n".join(sections)
+
+    @staticmethod
+    def extract_summary(result: RunResult, *, max_chars: int = SUMMARY_MAX_CHARS) -> str:
+        """Extrai resumo textual do resultado do agente."""
+        text = (result.result or "").strip()
+        if not text:
+            return f"(status={result.status}, sem texto de resultado)"
+        if len(text) <= max_chars:
+            return text
+        return text[: max_chars - 3] + "..."
+
+    def run_agent_step(
+        self,
+        project: ProjectConfig,
+        agent_name: str,
+        *,
+        task_path: Path | None = None,
+        previous_context: str | None = None,
+        pipeline_name: str | None = None,
+        task_id: str | None = None,
+        step_index: int | None = None,
+    ) -> AgentStepRecord:
+        """
+        Executa um step de pipeline: agente + task + contexto acumulado.
+
+        Persiste log em ai/runs/pipelines/ e retorna resumo para o próximo step.
+        """
+        command = self.pipeline_command_for_agent(agent_name)
+        mode = self.mode_for_command(command)
+        prompt = self.build_pipeline_step_prompt(
+            agent_name,
+            command=command,
+            task_path=task_path,
+            previous_context=previous_context,
+            project=project.name,
+            pipeline_name=pipeline_name,
+        )
+
+        result = self.run_prompt(project, prompt, mode=mode, use_session=False)
+        summary = self.extract_summary(result)
+
+        label_parts = ["pipeline"]
+        if pipeline_name:
+            label_parts.append(pipeline_name)
+        if task_id:
+            label_parts.append(task_id.lower())
+        if step_index is not None:
+            label_parts.append(f"step{step_index:02d}")
+        label_parts.append(agent_name)
+        file_label = "_".join(label_parts)
+
+        run_path = self._save_run(
+            project,
+            command,
+            mode,
+            prompt,
+            result,
+            task_path=task_path,
+            agent_name=agent_name,
+            runs_directory=self.pipelines_dir(),
+            file_label=file_label,
+        )
+
+        if str(result.status).lower() == "error":
+            raise RuntimeError(
+                f"Step '{agent_name}' falhou (status={result.status}). "
+                f"Detalhes em {run_path}"
+            )
+
+        return AgentStepRecord(
+            agent_name=agent_name,
+            command=command,
+            mode=mode,
+            prompt=prompt,
+            run_path=run_path,
+            result=result,
+            summary=summary,
+        )
 
     @staticmethod
     def mode_for_command(command: str) -> str:
@@ -476,10 +633,12 @@ class CursorRunner:
         *,
         task_path: Path | None,
         agent_name: str | None = None,
+        runs_directory: Path | None = None,
+        file_label: str | None = None,
     ) -> Path:
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-        base_name = f"{timestamp}_{project.name}_{command}"
-        runs_dir = self.runs_dir()
+        base_name = f"{timestamp}_{project.name}_{file_label or command}"
+        runs_dir = runs_directory or self.runs_dir()
 
         payload = {
             "timestamp": timestamp,
@@ -495,6 +654,7 @@ class CursorRunner:
             "agent_id": result.agent_id,
             "duration_ms": result.duration_ms,
             "result": result.result,
+            "file_label": file_label,
         }
 
         json_path = runs_dir / f"{base_name}.json"

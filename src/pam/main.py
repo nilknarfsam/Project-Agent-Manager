@@ -806,6 +806,106 @@ def cmd_create_project(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_gui(_args: argparse.Namespace) -> int:
+    """Abre o Desktop Launcher (Tkinter)."""
+    from pam.gui_launcher import start_gui
+
+    start_gui()
+    return 0
+
+
+def cmd_pipeline(args: argparse.Namespace) -> int:
+    """Executa pipeline multi-agente sequencial para uma task."""
+    from pam.pipeline_engine import PipelineEngine, PipelineEngineError
+
+    project = load_project(args.project)
+    engine = PipelineEngine()
+
+    print(f"[pipeline] Projeto: {project.name}")
+    print(f"[pipeline] Task:    {args.task_id}")
+    print(f"[pipeline] Pipeline:{args.pipeline}")
+    if args.from_step:
+        print(f"[pipeline] From:    {args.from_step}")
+
+    try:
+        result = engine.execute(
+            project,
+            args.task_id,
+            pipeline_name=args.pipeline,
+            from_step=args.from_step,
+        )
+    except (PipelineEngineError, TaskManagerError) as exc:
+        print(f"[pipeline] Erro: {exc}", file=sys.stderr)
+        return 1
+    except RuntimeError as exc:
+        print(f"[pipeline] Erro de execução: {exc}", file=sys.stderr)
+        return 1
+
+    print(f"[pipeline] Final: {result.final_summary}")
+    return 0 if result.success else 1
+
+
+def _add_ai_project_argument(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "project",
+        help="Nome do projeto (ex.: auratime, nilkplayer)",
+    )
+    parser.add_argument(
+        "--prompt",
+        "-p",
+        default=None,
+        help="Instruções adicionais ao contexto do projeto",
+    )
+
+
+def cmd_ai_summary(args: argparse.Namespace) -> int:
+    """Sumariza contexto do projeto via Gemini."""
+    from pam.ai_service import format_provider_error, run_ai_summary
+    from pam.providers.base_provider import ProviderError
+
+    print(f"[ai-summary] Projeto: {args.project} (provider: Gemini)")
+    try:
+        text = run_ai_summary(args.project, args.prompt)
+    except ProviderError as exc:
+        print(f"[ai-summary] Erro: {format_provider_error(exc)}", file=sys.stderr)
+        return 1
+
+    print("\n" + text + "\n")
+    return 0
+
+
+def cmd_ai_tasks(args: argparse.Namespace) -> int:
+    """Sugere tasks via Gemini."""
+    from pam.ai_service import format_provider_error, run_ai_tasks
+    from pam.providers.base_provider import ProviderError
+
+    print(f"[ai-tasks] Projeto: {args.project} (provider: Gemini)")
+    try:
+        text = run_ai_tasks(args.project, args.prompt)
+    except ProviderError as exc:
+        print(f"[ai-tasks] Erro: {format_provider_error(exc)}", file=sys.stderr)
+        return 1
+
+    print("\n" + text + "\n")
+    return 0
+
+
+def cmd_ai_docs(args: argparse.Namespace) -> int:
+    """Gera rascunho de documentação via Gemini."""
+    from pam.ai_service import format_provider_error, run_ai_docs
+    from pam.providers.base_provider import ProviderError
+
+    print(f"[ai-docs] Projeto: {args.project} (provider: Gemini)")
+    try:
+        text = run_ai_docs(args.project, args.prompt)
+    except ProviderError as exc:
+        print(f"[ai-docs] Erro: {format_provider_error(exc)}", file=sys.stderr)
+        return 1
+
+    print("\n" + text + "\n")
+    return 0
+
+
 def _add_task_id_argument(parser: argparse.ArgumentParser) -> None:
 
     parser.add_argument(
@@ -1074,6 +1174,57 @@ def build_parser() -> argparse.ArgumentParser:
         help="Permitir diretório não vazio ou sobrescrever templates",
     )
     create_parser.set_defaults(func=cmd_create_project)
+
+    gui_parser = subparsers.add_parser(
+        "gui",
+        help="Abre o Desktop Launcher (interface Tkinter)",
+    )
+    gui_parser.set_defaults(func=cmd_gui)
+
+    pipeline_parser = subparsers.add_parser(
+        "pipeline",
+        help="Executa pipeline multi-agente sequencial para uma task",
+    )
+    pipeline_parser.add_argument(
+        "project",
+        help="Nome do projeto (ex.: auratime)",
+    )
+    pipeline_parser.add_argument(
+        "task_id",
+        help="ID da tarefa (ex.: TASK-0001)",
+    )
+    pipeline_parser.add_argument(
+        "--pipeline",
+        default="default_pipeline",
+        help="Nome do pipeline em ai/pipelines/ (padrão: default_pipeline)",
+    )
+    pipeline_parser.add_argument(
+        "--from-step",
+        default=None,
+        help="Iniciar a partir deste agente (ex.: reviewer)",
+    )
+    pipeline_parser.set_defaults(func=cmd_pipeline)
+
+    ai_summary_parser = subparsers.add_parser(
+        "ai-summary",
+        help="Sumariza contexto do projeto via Gemini (não usa Cursor)",
+    )
+    _add_ai_project_argument(ai_summary_parser)
+    ai_summary_parser.set_defaults(func=cmd_ai_summary)
+
+    ai_tasks_parser = subparsers.add_parser(
+        "ai-tasks",
+        help="Sugere tasks pequenas via Gemini (não usa Cursor)",
+    )
+    _add_ai_project_argument(ai_tasks_parser)
+    ai_tasks_parser.set_defaults(func=cmd_ai_tasks)
+
+    ai_docs_parser = subparsers.add_parser(
+        "ai-docs",
+        help="Gera rascunho de documentação via Gemini (não usa Cursor)",
+    )
+    _add_ai_project_argument(ai_docs_parser)
+    ai_docs_parser.set_defaults(func=cmd_ai_docs)
 
     return parser
 

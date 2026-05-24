@@ -5,6 +5,53 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2026-05-23
+
+### Added (Sprint 8 — Gemini Provider Integration)
+
+- Pacote `google-genai` e variáveis `GEMINI_API_KEY`, `GEMINI_MODEL` em `.env.example`.
+- Módulos `src/pam/providers/` — `base_provider`, `gemini_provider`, `provider_router`.
+- Roteamento Gemini (leve) vs Cursor (profundo): analysis, docs, tasks → Gemini; code_edit, plan/run → Cursor.
+- Comandos `ai-summary`, `ai-tasks`, `ai-docs` — usam Gemini, não Cursor.
+- Serviço `ai_service.py` — contexto PAM + chamadas Gemini.
+- README: seção Multi-Provider Runtime.
+
+### Changed
+
+- `CURRENT_SPRINT` atualizado para Sprint 8.
+
+## [0.8.0] - 2026-05-23
+
+### Added (Sprint 7 — Multi-Agent Orchestration foundation)
+
+- Módulo `pipeline_engine.py` — execução sequencial de pipelines YAML.
+- Módulo `pipeline_result.py` — modelo consolidado (`PipelineResult`, `PipelineStepResult`).
+- Pipeline padrão `ai/pipelines/default_pipeline.yaml` (6 agentes).
+- `cursor_runner.run_agent_step()` — step com contexto acumulado entre agentes.
+- `task_manager.pipeline_history` — registro de steps por task.
+- Comando `pipeline <projeto> <TASK-XXXX>` com `--pipeline` e `--from-step`.
+- Logs consolidados em `ai/runs/pipelines/`.
+- README: seção Multi-Agent Orchestration.
+
+### Changed
+
+- `CURRENT_SPRINT` atualizado para Sprint 7.
+
+## [0.7.5] - 2026-05-23
+
+### Added (Sprint 6.5 — Desktop Launcher foundation)
+
+- Módulo `gui_launcher.py` — interface desktop Tkinter (sem dependências extras).
+- Comando `gui` — abre o Desktop Launcher.
+- Seleção de pasta, projeto cadastrado, onboard, listagem de projetos.
+- Execução de `plan`, `run`, `review`, `resume` com agente, task e prompt extra.
+- Área de log com saída capturada dos handlers CLI existentes.
+- README: seção Desktop Launcher.
+
+### Changed
+
+- `CURRENT_SPRINT` atualizado para Sprint 6.5.
+
 ## [0.7.0] - 2026-05-23
 
 ### Added (Sprint 6 — Project Onboarding System)

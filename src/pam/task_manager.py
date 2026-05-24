@@ -56,6 +56,7 @@ class TaskMetadata:
     created_at: str
     updated_at: str
     history: list[dict[str, Any]] = field(default_factory=list)
+    pipeline_history: list[dict[str, Any]] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -71,6 +72,7 @@ class TaskMetadata:
             created_at=str(data["created_at"]),
             updated_at=str(data["updated_at"]),
             history=list(data.get("history", [])),
+            pipeline_history=list(data.get("pipeline_history", [])),
         )
 
 
@@ -425,3 +427,41 @@ class TaskManager:
             self.update_status(task_id, "reviewed", message="run completed")
         elif command == "review":
             self.update_status(task_id, "done", message="review completed")
+
+    def record_pipeline_step(
+        self,
+        task_id: str,
+        *,
+        pipeline_name: str,
+        agent: str,
+        status: str,
+        started_at: str,
+        finished_at: str,
+        summary: str,
+        run_path: str | None = None,
+        error: str | None = None,
+    ) -> TaskMetadata:
+        """Registra step de pipeline em pipeline_history da task."""
+        meta = self.load(task_id)
+        entry: dict[str, Any] = {
+            "pipeline_name": pipeline_name,
+            "agent": agent,
+            "status": status,
+            "started_at": started_at,
+            "finished_at": finished_at,
+            "summary": self._truncate_pipeline_summary(summary),
+            "run_path": run_path,
+        }
+        if error:
+            entry["error"] = error
+        meta.pipeline_history.append(entry)
+        meta.updated_at = self.utc_now()
+        self.save(meta)
+        return meta
+
+    @staticmethod
+    def _truncate_pipeline_summary(summary: str, limit: int = 500) -> str:
+        text = summary.strip()
+        if len(text) <= limit:
+            return text
+        return text[: limit - 3] + "..."

@@ -19,11 +19,13 @@ Não é só um CLI de prompts: é a camada que organiza **como** agentes trabalh
 | **Sessões** | `ai/sessions/` — metadata + retomada via `Agent.resume()` |
 | **Agentes** | `ai/agents/` — papéis especializados (architect, implementer, …) |
 | **Sprints** | entregas pequenas e versionadas (ver `CHANGELOG.md`) |
+| **Gemini (leve)** | `ai-summary`, `ai-tasks`, `ai-docs` — análise sem editar código |
 
 ## Requisitos
 
 - Python 3.11+
-- Chave de API Cursor (`CURSOR_API_KEY`)
+- Chave de API Cursor (`CURSOR_API_KEY`) — plan/run/review/pipeline
+- Chave Gemini opcional (`GEMINI_API_KEY`) — comandos `ai-*`
 - Repositórios dos projetos configurados e acessíveis no disco
 
 ## Instalação
@@ -40,9 +42,12 @@ Edite `.env` e defina sua chave (nunca commite o arquivo `.env`):
 
 ```env
 CURSOR_API_KEY=your_cursor_api_key_here
+GEMINI_API_KEY=your_gemini_api_key_here
+GEMINI_MODEL=gemini-2.5-flash
 ```
 
-Obtenha a chave em [Cursor Dashboard → Integrations](https://cursor.com/dashboard/integrations).
+Obtenha a chave Cursor em [Cursor Dashboard → Integrations](https://cursor.com/dashboard/integrations).  
+Obtenha a chave Gemini em [Google AI Studio](https://aistudio.google.com/apikey).
 
 ## Uso
 
@@ -69,6 +74,11 @@ python -m pam.main --list-projects
 | `clear-session` | — | Remove metadata de sessão (preserva `ai/runs/`) |
 | `onboard` | — | Aplica estrutura OS4AI em repositório existente |
 | `create-project` | — | Cria novo projeto PAM-native (flutter / python / electron) |
+| `gui` | — | Abre o Desktop Launcher (Tkinter) |
+| `pipeline` | sequencial | Pipeline multi-agente para TASK-XXXX |
+| `ai-summary` | Gemini | Sumariza contexto do projeto (leve) |
+| `ai-tasks` | Gemini | Sugere tasks pequenas |
+| `ai-docs` | Gemini | Rascunho de documentação |
 
 O **Context Engine** injeta `ai/context/` e `ai/memory/<projeto>/`. Cada execução também inclui a definição do **agente especializado** selecionado.
 
@@ -179,6 +189,83 @@ python -m pam.main create-project python my-app --path D:\dev\projects
 
 Stacks: `flutter`, `python`, `electron`. Diretório padrão: pai dos projetos já configurados (ex.: `C:\src\projects`).
 
+### Desktop Launcher
+
+Interface desktop simples (Tkinter) que **complementa a CLI** — delega aos mesmos handlers (`cmd_plan`, `cmd_run`, etc.) sem duplicar lógica.
+
+```powershell
+python -m pam.main gui
+```
+
+| Recurso | Descrição |
+|---------|-----------|
+| Projeto cadastrado | Combobox com projetos de `ai/projects/` |
+| Pasta | Seletor de diretório + onboard |
+| Comandos | `plan`, `run`, `review`, `resume` |
+| Agente | Opcional (vazio = padrão do comando) |
+| Task | Caminho manual ou seletor de arquivo `.md` |
+| Prompt extra | Equivalente a `-p` |
+| Log | Saída em tempo real na janela |
+
+Requisito: Python com Tkinter (incluído na instalação padrão do Windows).
+
+### Multi-Agent Orchestration
+
+Orquestração **sequencial** de agentes especializados via pipelines YAML — complementa execução single-agent (`plan` / `run` / `review`).
+
+```powershell
+python -m pam.main pipeline auratime TASK-0001
+python -m pam.main pipeline auratime TASK-0001 --pipeline default_pipeline
+python -m pam.main pipeline auratime TASK-0001 --from-step reviewer
+```
+
+| Conceito | Descrição |
+|----------|-----------|
+| Pipeline | Sequência de agentes definida em `ai/pipelines/*.yaml` |
+| Execução | Um agente por vez; sem paralelismo |
+| Contexto acumulado | Resumo de cada step passa ao próximo |
+| Task lifecycle | Status atualizado; `pipeline_history` na metadata JSON |
+| Logs | Steps em `ai/runs/pipelines/` + resultado consolidado `.json`/`.md` |
+
+Pipeline padrão (`default_pipeline.yaml`):
+
+```
+architect → implementer → reviewer → test_writer → docs_writer → release_manager
+```
+
+Comandos single-agent continuam disponíveis e inalterados.
+
+### Multi-Provider Runtime
+
+O PAM usa **dois runtimes complementares** — Gemini não substitui Cursor.
+
+| Provider | Uso | Comandos |
+|----------|-----|----------|
+| **Cursor SDK** | Edição real de código, refactors, sessões persistentes, pipelines completos | `plan`, `run`, `review`, `resume`, `pipeline` |
+| **Gemini** | Análise leve, sumarização, sugestão de tasks, rascunho de docs | `ai-summary`, `ai-tasks`, `ai-docs` |
+
+Roteamento (`provider_router.py`):
+
+| Tipo de tarefa | Provider |
+|----------------|----------|
+| `analysis`, `summarize`, `docs`, `roadmap`, `tasks` | Gemini |
+| `code_edit`, `refactor`, `deep_agent`, `plan`, `run`, `review` | Cursor |
+
+Variáveis de ambiente:
+
+```env
+GEMINI_API_KEY=your_gemini_api_key_here
+GEMINI_MODEL=gemini-2.5-flash   # opcional, padrão gemini-2.5-flash
+```
+
+Sem `GEMINI_API_KEY`, os comandos `ai-*` falham com mensagem amigável — os demais comandos Cursor continuam funcionando.
+
+```powershell
+python -m pam.main ai-summary auratime
+python -m pam.main ai-tasks auratime -p "Foque em testes e documentação"
+python -m pam.main ai-docs nilkplayer
+```
+
 ### Exemplos
 
 ```powershell
@@ -203,7 +290,8 @@ project_agent_manager/
 │   ├── tasks/         # Task Lifecycle (active/completed/blocked/archived)
 │   ├── prompts/       # templates plan, run, review
 │   ├── agents/        # definições de agentes especializados
-│   └── runs/          # logs de execução (local)
+│   ├── pipelines/     # pipelines multi-agente (YAML)
+│   └── runs/          # logs de execução (local, incl. pipelines/)
 ├── src/pam/
 │   ├── main.py
 │   ├── config_loader.py
@@ -212,8 +300,13 @@ project_agent_manager/
 │   ├── session_store.py
 │   ├── agent_registry.py
 │   ├── task_manager.py
+│   ├── pipeline_engine.py
+│   ├── pipeline_result.py
 │   ├── project_bootstrap.py
 │   ├── template_engine.py
+│   ├── gui_launcher.py
+│   ├── ai_service.py
+│   ├── providers/
 │   ├── templates/
 │   └── models.py
 └── README.md

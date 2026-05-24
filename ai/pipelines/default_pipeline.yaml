@@ -1,0 +1,12 @@
+name: default_pipeline
+description: >-
+  Pipeline sequencial padrão — architect → implementer → reviewer →
+  test_writer → docs_writer → release_manager.
+
+steps:
+  - architect
+  - implementer
+  - reviewer
+  - test_writer
+  - docs_writer
+  - release_manager
