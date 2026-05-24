@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-beta.1] - 2026-05-23
+
+### Added (Sprint 10 — Agentic Workbench UI foundation)
+
+- GUI reorganizada em layout **Agentic Workbench**: sidebar de projetos, área central, log inferior.
+- Abas: Operações, Tasks, Runtime Profiles, Configurações, Logs.
+- Aba **Tasks** — listagem de tarefas do lifecycle por projeto.
+- Botões **Abrir no Cursor** e **Abrir no VS Code** via `open_project_in_editor()`.
+- Prompt extra multilinha; janela maior; padding e fonte monoespaçada no log.
+- README: seção Agentic Workbench UI.
+
+### Changed
+
+- `gui_launcher.py` evoluído de Desktop Launcher para Agentic Workbench.
+- Correção no redirecionamento de stdout/stderr durante execução em thread.
+- `CURRENT_SPRINT` atualizado para Sprint 10.
+
 ## [1.0.0-beta] - 2026-05-23
 
 ### Added (Sprint 9 — Agent Runtime Profiles)

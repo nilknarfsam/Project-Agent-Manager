@@ -74,7 +74,7 @@ python -m pam.main --list-projects
 | `clear-session` | — | Remove metadata de sessão (preserva `ai/runs/`) |
 | `onboard` | — | Aplica estrutura OS4AI em repositório existente |
 | `create-project` | — | Cria novo projeto PAM-native (flutter / python / electron) |
-| `gui` | — | Abre o Desktop Launcher (Tkinter) |
+| `gui` | — | Abre o Agentic Workbench (Tkinter) |
 | `pipeline` | sequencial | Pipeline multi-agente para TASK-XXXX |
 | `ai-summary` | Gemini | Sumariza contexto do projeto (leve) |
 | `ai-tasks` | Gemini | Sugere tasks pequenas |
@@ -191,23 +191,34 @@ python -m pam.main create-project python my-app --path D:\dev\projects
 
 Stacks: `flutter`, `python`, `electron`. Diretório padrão: pai dos projetos já configurados (ex.: `C:\src\projects`).
 
-### Desktop Launcher
+### Agentic Workbench UI
 
-Interface desktop simples (Tkinter) que **complementa a CLI** — delega aos mesmos handlers (`cmd_plan`, `cmd_run`, etc.) sem duplicar lógica.
+Interface desktop (Tkinter) orientada a **arquitetos de software** — complementa a CLI sem duplicar lógica de negócio. Não é uma IDE completa; foco em clareza, organização e execução agentica.
 
 ```powershell
 python -m pam.main gui
 ```
 
-| Recurso | Descrição |
-|---------|-----------|
-| Projeto cadastrado | Combobox com projetos de `ai/projects/` |
-| Pasta | Seletor de diretório + onboard |
-| Comandos | `plan`, `run`, `review`, `resume` |
-| Agente | Opcional (vazio = padrão do comando) |
-| Task | Caminho manual ou seletor de arquivo `.md` |
-| Prompt extra | Equivalente a `-p` |
-| Log | Saída em tempo real na janela |
+| Área | Conteúdo |
+|------|----------|
+| **Barra lateral** | Lista de projetos, Atualizar, Abrir pasta, onboard, Abrir no Cursor / VS Code |
+| **Operações** | Comando, agente, task, prompt extra, Executar |
+| **Tasks** | Tarefas do lifecycle (`ai/tasks/`) do projeto selecionado |
+| **Runtime Profiles** | Provider/model por agente (somente leitura) |
+| **Configurações** | Chaves de API (.env) |
+| **Logs** | Controles da saída em tempo real |
+| **Painel inferior** | Log monoespaçado com saída dos comandos |
+
+Abrir projeto no editor externo:
+
+```text
+cursor <caminho_do_projeto>
+code <caminho_do_projeto>
+```
+
+Se o comando não estiver no PATH, a GUI exibe erro amigável com instruções.
+
+Comandos delegados aos mesmos handlers da CLI: `plan`, `run`, `review`, `resume`, onboard.
 
 Requisito: Python com Tkinter (incluído na instalação padrão do Windows).
 

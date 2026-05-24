@@ -1,28 +1,28 @@
-# Sprint 9 — Agent Runtime Profiles
+# Sprint 10 — Agentic Workbench UI foundation
 
 **Status:** em andamento  
-**Objetivo:** permitir que cada agente utilize providers e modelos diferentes via YAML configurável.
+**Direção:** Agentic Workbench for Software Architects  
+**Objetivo:** evoluir a GUI Tkinter para uma primeira versão mais amigável, sem virar IDE completa.
 
 ## Entregas
 
-- [x] `ai/runtime_profiles/default_profiles.yaml` — profiles por agente
-- [x] `runtime_profiles.py` — load, validate, resolve, fallback seguro
-- [x] `provider_router.route_agent()` — roteamento por agente
-- [x] `pipeline_engine` — resolve profile, logs provider/model, execução híbrida
-- [x] `task_manager.pipeline_history` — campos `provider` e `model`
-- [x] GUI aba **Runtime Profiles** (somente leitura)
-- [x] README: seção Agent Runtime Profiles
-- [x] CHANGELOG 1.0.0-beta
+- [x] Layout workbench — sidebar, área central, log inferior
+- [x] Abas: Operações, Tasks, Runtime Profiles, Configurações, Logs
+- [x] Melhorias visuais — padding, labels, prompt maior, janela maior
+- [x] Botões Abrir no Cursor / Abrir no VS Code
+- [x] `open_project_in_editor(editor, path)` — função única reutilizável
+- [x] Preservação de onboard, plan/run/review/resume, profiles, configurações
+- [x] README: seção Agentic Workbench UI
+- [x] CHANGELOG 1.0.0-beta.1
 
 ## Critérios de aceite
 
-- Profiles carregam via YAML
-- Cada agente resolve provider diferente
-- Pipeline logs mostram provider/model
-- GUI mostra runtime profiles
-- Providers desacoplados
-- Comandos antigos continuam funcionando (fallback Cursor)
+- `python -m pam.main gui` abre interface reorganizada
+- Comandos existentes funcionam
+- Abrir no Cursor/VS Code funciona ou mostra erro amigável
+- Sem lógica de negócio duplicada
+- Interface mais clara e confortável
 
-## Próximo passo (Sprint 10)
+## Próximo passo (Sprint 11)
 
-Providers OpenAI/Anthropic em pipeline ou edição de profiles via GUI.
+Pipeline na GUI, histórico de runs ou refinamentos visuais adicionais.
